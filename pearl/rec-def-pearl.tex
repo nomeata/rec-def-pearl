@@ -1,0 +1,364 @@
+\documentclass[manuscript,screen,acmsmall]{acmart}
+
+\usepackage[capitalise]{cleveref}
+
+\setcopyright{rightsretained}
+\copyrightyear{2023}
+\acmYear{2023}
+\acmDOI{XXXXXXX.XXXXXXX}
+
+
+\acmConference[ICFP'23]{ICFP}{June 03--05,2018}{Woodstock, NY}
+
+\citestyle{acmauthoryear}
+
+\begin{document}
+
+\title{Functional Pearl: More fixpoints!}
+
+\author{Joachim Breitner}
+\email{mail@joachim-breitner.de}
+\orcid{0000-0003-3753-6821}
+\affiliation{%
+   \institution{unaffiliated}
+%  \institution{Institute for Clarity in Documentation}
+%  \streetaddress{P.O. Box 1212}
+%  \city{Dublin}
+%  \state{Ohio}
+  \country{Germany}
+%  \postcode{43017-6221}
+}
+
+
+\begin{abstract}
+Haskell’s lazyiness allows the programmer to express some problems very declaratively and naturally, by recursive equations. Unfortunately, if the input is “too recursive”, these very elegant idioms can fall into a black hole, and the programmer has to resort to more pedestrian approaches.
+
+We show that it does not have to be that way: We build variants of common pure data structures that internally do rather nasty things, but provide a pure API and where the recursive idioms -- magically -- work.
+
+In the end, this raises interesting questions about the precise nature of purity.
+\end{abstract}
+
+\begin{CCSXML}
+<ccs2012>
+   <concept>
+       <concept_id>10011007.10011006.10011008.10011024.10011033</concept_id>
+       <concept_desc>Software and its engineering~Recursion</concept_desc>
+       <concept_significance>500</concept_significance>
+       </concept>
+   <concept>
+       <concept_id>10011007.10011006.10011008.10011009.10011012</concept_id>
+       <concept_desc>Software and its engineering~Functional languages</concept_desc>
+       <concept_significance>500</concept_significance>
+       </concept>
+ </ccs2012>
+\end{CCSXML}
+
+\ccsdesc[500]{Software and its engineering~Recursion}
+\ccsdesc[500]{Software and its engineering~Functional languages}
+
+\keywords{Haskell, recursion, fixpoint}
+
+\maketitle
+
+\section{Introduction}
+
+Haskell is a pure and lazy programming language, and the laziness allows us to write some algorithms very elegantly, by recursively referring to already calculated values. A typical and famous example is the following definition of the Fibonacci numbers, as an infinite stream:
+\begin{verbatim}
+fibs :: [Integer]
+fibs = 0 : 1 : zipWith (+) fibs (tail fibs)
+\end{verbatim}
+This if often called “knot-tying”, because a value (here \verb|fibs|) refers to itself.
+
+\subsection{Tying the knot with graphs}
+
+A maybe more practical example is the following calculation of the reflexivle transitive closure of a graph, i.e.\ for each node the set of nodes reachable from it. Let's represent graphs as maps from vertices (\verb|Integer|) to lists of vertices:
+\begin{verbatim}
+import qualified Data.Set as S
+import qualified Data.Map as M
+type Graph = M.Map Int [Int]
+\end{verbatim}
+
+Then the reflexive transitive closure can be very elegantly expressed by knot-tying a map from verticies to the set of reachable vertices:
+\begin{verbatim}
+transitive1 :: Graph -> Graph
+transitive1 g = M.map S.toList sets
+  where
+    sets :: M.Map Int (S.Set Int)
+    sets = M.mapWithKey (\v vs -> S.insert v (S.unions [ sets M.! v' | v' <- vs ])) g
+\end{verbatim}
+This code is quite close to the prosaic specification “the reachable nodes from a node \verb|v| are \verb|v| itself, plus all the nodes reachable from its successors”; hence we can claim that this code is declarative.
+
+Note how the definintion of \verb|sets| refers to itself -- “we are tying a knot”.
+
+\subsection{It works, until it doesn't}
+
+This is the kind of code we like to impress our imperative-code-writing friend with, and it works quite nicely:
+\begin{verbatim}
+ghci> transitive1 $ M.fromList [(1,[3]),(2,[1,3]),(3,[])]
+fromList [(1,[1,3]),(2,[1,2,3]),(3,[3])]
+\end{verbatim}
+
+At least until our imperative-code-writing friend challenges us to add just one small edge to the graph:
+\begin{verbatim}
+ghci> transitive1 $ M.fromList [(1,[2,3]),(2,[1,3]),(3,[])]
+fromList [(1,fromList ^CInterrupted.
+\end{verbatim}
+Why does it fail? Because the graph has a \emph{cycle} ($1 \to 2 \to 1$), and that makes our code to get lost in an infinite loop, until we abort it.
+
+This is quite disappointing, because it if we want to be able to handle recursive equations, we have to implement this in a much more tedious way, maybe with an explicit loop, keeping track of the set of seen functions (see \cref{sec:imp} if you really want to see it, but the goal is that you shoudn’t have to). It works, and most of us have written that code once (or many times), but we can no longer impress our friend.
+
+But it seems we should: The declarative specification that \verb|transitive1| is derived from holds for recursive graphs as well, so it does not seem unreasonable to expect this code to handle also recursive graphs. So where does it go wrong? The way we use the lazy map data structure is fine; it helps us to express the set of reachable nodes by way of other such sets.
+
+But the set data structure with its operations \verb|insert| and \verb|union| are not lazy enough: \verb|union| needs to know the value of its arguments before it can produce something useful, and thus cannot be used recursively.
+
+\subsection{We need better sets!}
+
+In this paper we present a data structure for sets, called \verb|RSet| where such recursive expressions do work! Its API is almost the same as that of \verb|Data.Set|. In particular, it consists of \emph{pure} functions -- no monads necessary. The fragment relevant for our example is:
+\begin{verbatim}
+insert :: Ord a => a -> RSet a -> RSet a
+unions :: Ord a => [RSet a] -> RSet a
+get :: RSet a -> Set a
+\end{verbatim}
+Besides the two operations used by \verb|transitive1|, with type signatures mirroring those of \verb|Data.Set| exactly, there is also a function to convert a \verb|RSet| to a \verb|Set|.
+
+We can use this data structure in our code without changing its structure; we just swap out the operations (imported qualified as \verb|RS|) and convert back to conventional sets in the end:
+\begin{verbatim}
+transitive2 :: Graph -> Graph
+transitive2 g = M.map (S.toList . RS.get) sets
+  where
+    sets :: M.Map Int (RS.RSet Int)
+    sets = M.mapWithKey (\v vs -> RS.insert v (RS.unions [ sets M.! v' | v' <- vs ])) g
+\end{verbatim}
+
+And indeed, now we \emph{can} handle recursive graphs, and get the correct result:
+\begin{verbatim}
+ghci> transitive2 $ M.fromList [(1,[2,3]),(2,[1,3]),(3,[])]
+fromList [(1,[1,2,3]),(2,[1,2,3]),(3,[3])]
+\end{verbatim}
+
+\subsection{Contributions}
+
+From the user’s point of view, that’s almost all we have to say: There is a library of types (sets, Booleans, maps) you can use like the conventional one, and suddenly your favorite knot-tying tricks work even better. In \cref{sec:exploration} we'll explore how this library from the user's point of view, before taking a look at how it works under the hood (\cref{sec:impl}), discussing whether calling this \emph{pure} is actually warranted (\cref{sec:discussion}) and finally taking a brief glance at related approaches (\cref{sec:related}).
+
+The main contributions of this paper are
+\begin{itemize}
+\item providing a Haskell library with variants of common data types (sets, booleans and maps, and it can be extended) with a \emph{safe} and \emph{pure} interface mirroring the conventional API, but where recursive expressions are productive,
+\item posing the question of whether this should really be considered \emph{pure}, and by noticing that this question is hard to answer (let alone to prove), pose a challenge to the community, and
+\item observing, as a hopefully enlightening insight, that one of the main features of \emph{laziness} is that it allows more recursive equations to be solved, and thus more problems be expressed declaratively, and thus a the lazier the language, the more declarative.
+\end{itemize}
+
+\section{Exploration}\label{sec:exploration}
+
+In the introduction we have used a data type \verb|RSet| with an API that resemble those of the \verb|Set| data structure in Haskell's \verb|Data.Set| library. Let us explore this data structure more from the user's point of view, to get a better understanding of how it is different from the vanilla \verb|Set|, and to whet the appetite for the look at its implementation in the subsequent section.
+\Cref{fig:api} gives a more commprehensive overview of the API.
+
+\subsection{Just a isomorphic copy?}
+
+\begin{figure}
+\begin{verbatim}
+module Data.Recursive.Set where  -- imported as RS here
+  data RSet a
+  get          ::          RSet a ->           Set a
+  mk           ::          Set a ->            RSet a
+  empty        ::                              RSet a
+  singleton    ::          a ->                RSet a
+  insert       :: Ord a => a -> RSet a ->      RSet a
+  delete       :: Ord a => a -> RSet a ->      RSet a
+  union        :: Ord a => RSet a -> RSet a -> RSet a
+  unions       :: Ord a => [RSet a] ->         RSet a
+  intersection :: Ord a => RSet a -> RSet a -> RSet a
+  member       :: Ord a => a -> RSet a ->      RBool
+  null         ::          RSet a ->           RDualBool
+  id           ::          RSet a ->           RSet a
+
+module Data.Recursive.Bool where  -- imported as RB here
+  data RBool
+  get         ::  RBool ->          Bool
+  mk          ::  Bool ->           RBool
+  true, false ::                    RBool
+  (&&),(||)   ::  RBool -> RBool -> RBool
+  and, or     ::  [RBool] ->        RBool
+  not         ::  RBool ->          RDualBool
+  id          ::  RBool ->          RBool
+
+module Data.Recursive.DualBool where  -- imported as RDB here
+  data RDualBool
+  get         ::  RDualBool ->              Bool
+  mk          ::  Bool ->                   RDualBool
+  true, false ::                            RDualBool
+  (&&),(||)   ::  RDualBool -> RDualBool -> RDualBool
+  and, or     ::  [RDualBool] ->            RDualBool
+  not         ::  RDualBool ->              RBool
+  id          ::  RDualBool ->              RDualBool
+\end{verbatim}
+\caption{The API of recursively definable sets and booleans}\label{fig:api}
+\end{figure}
+
+At the first glance, \verb|RSet| looks like a isomorphic copy of \verb|Set|, with \verb|get :: RSet a -> Set a| and \verb|mk :: Set a -> RSet a| converting between the types, and all the operations on \verb|RSet| behave as their counterpart on \verb|Set|. Let's quickly check that \citep{quickcheck}:
+\begin{verbatim}
+ghci> quickCheck $ \s -> RS.get (RS.mk s) === s
++++ OK, passed 100 tests.
+ghci> quickCheck $ \s1 s2 -> RS.get (RS.union s1 s2) === S.union (RS.get s1) (RS.get s2)
++++ OK, passed 100 tests.
+\end{verbatim}
+
+The second equation generalizes to all operations in the API, giving it a specification in terms of the underlying vanilla data type. But there must be a difference, else we would not be writing this paper.
+
+\subsection{Recursion!}
+
+The difference is that with \verb|RSet|, \emph{recursively defined expressions work!}. For example, using vanilla \verb|Set| from \verb|Data.Set| (imported qualified as \verb|S|), evaluating recursive expressions tends to hang:
+\begin{verbatim}
+ghci> let s = S.insert 42 s in s
+fromList ^CInterrupted.
+\end{verbatim}
+While it simply works using  \verb|RSet|:
+\begin{verbatim}
+ghci> let s = RS.insert 42 s in RS.get s
+fromList [42]
+\end{verbatim}
+It works for larger expressions as well
+\begin{verbatim}
+ghci> let s = RS.insert 42 (RS.union (RS.insert 23 s) (RS.delete 42 s)) in RS.get s
+fromList [23,42]
+\end{verbatim}
+Not even mutual recursion poses a problem:
+\begin{verbatim}
+ghci> let s1 = RS.insert 42 s2
+ghci|     s2 = RS.insert 23 s3
+ghci|     s3 = RS.delete 42 s1
+ghci| in (RS.get s1, RS.get s2, RS.get s3)
+(fromList [23,42],fromList [23],fromList [23])
+\end{verbatim}
+
+In these examples, we built the graph of recursively defined \verb|RSet| values explicitly, using \verb|let|, to have a good look at them. In practice one would more likely construct that graph using lazy data structres and knot-tying, maybe dynamically based on some input, as done in the example.
+
+TODO: Another bigger example maybe? Maybe \url{https://www.joachim-breitner.de/blog/794-rec-def__Program_analysis_case_study}? Here or in the appendix?
+
+\subsection{Fixpoints}
+
+It a positive surprise that these expressions are productive, i.e.\ that we even obtain a result. But it is the right result? If we look at the last expression above we can see that the vanilla sets we get for each of the variable make their defining equation an equality:
+\begin{verbatim}
+ghci> let s1 = S.fromList [23,42]; s2 = S.fromList [23]; s3 = S.fromList [23]
+ghci> s1 == S.insert 42 s2
+True
+ghci> s2 == S.insert 23 s3
+True
+ghci> s3 == S.delete 42 s1
+True
+\end{verbatim}
+
+That’s good, because that’s how we want equations in a functional programming language to behave.
+
+At this point you might interject that these are not the only possible solutions to this equation. Considering the smaller example above, of \verb|let s = RS.insert 42 s|, we find that indeed \verb|S.fromList [42]| solves the equation \verb|s == S.insert 42 s|, but so does \verb|S.fromList [42,43]|. Still, we would not consider that a “good” solution, and would be surprised if we'd get that.
+
+That is because the result we expect is the \textbf{least fixpoint}, the solution that is is, among all possible solutions, the smallest with regard to a particular partial order.
+
+In the context of sets that order is naturally that of subset inclusion, a possibly recursive expression of \verb|RSet| values will evaluate to the smallest set solving the definitional equations.
+
+It will always do so, provided that only finitely many \verb|RSet| values are involved and that \verb|RS.get| is not used in their construction. Using \verb|RS.get| drops us in the world of vanilla set, and the magic disappears:
+\begin{verbatim}
+ghci> let s = RS.mk (RS.get (RS.insert 42 s)) in RS.get s
+fromList ^CInterrupted.
+\end{verbatim}
+In this sense, \verb|RS.mk . RS.get| is not the identity function.
+
+\subsection{More than sets}
+
+The library of recursively definable values does not only provide sets, but also other data types, in particular Booleans, as seen in \cref{fig:api}. Again, we have a copy of the usual operations (literals, conjunction and disjunction), and as before, we expect an (possibly recursive) expression of \verb|RBool| values to evalute to the Boolean that solves these equation.
+
+What if both \verb|True| and \verb|Both| solve an equation, like in the following case?
+\begin{verbatim}
+ghci> let x = x RB.|| x in RB.get x
+False
+\end{verbatim}
+We can see that \verb|RBool| considers \verb|False| as the least element, and for some use-cases that is the right choice. But for other use-cases, one would prefer \verb|True| over \verb|False|. Therefore, the library provies a second module and datatype \verb|RDualBool|, again with the full set of operations on booleans, but this time returning \verb|True| if possible:
+\begin{verbatim}
+ghci> let x = x RDB.|| x in RDB.get x
+True
+\end{verbatim}
+
+\subsection{Monotonicity}
+
+These data types -- \verb|RSet|, \verb|RBool|, \verb|RDualBool| are not silos, and you will find amongt the functions in \cref{fig:api} some that connect these types -- negation on booleans, member checks on sets, and the emptiness check on sets.
+This means that even recursive expressions involving multiple of these types yield will produce a result.
+
+So why does \verb|RS.member| return a \verb|RBool|, but \verb|null| returns a \verb|RDualBool|? And why is there no \verb|not :: RBool -> RBool|? It is because all functions involved here must be \emph{monotonic}: smaller arguments must lead to smaller results. And because the empty set is smaller than a singleton set, \verb|RS.member 42| must return a \verb|RBool| where we consider \verb|False| to be smaller than \verb|True|, but \verb|null| must go to \verb|RDualBool| where \verb|True| is considered smaller than \verb|False|.
+
+If we did not pay attention to this while defining the API, and added non-monotonic functions (like \verb|not :: RBool -> RBool|), we would be able to write equations that do not have a solution, such as
+\begin{verbatim}
+let x = not x
+\end{verbatim}
+
+The underlying bit of theory is the theorem that a monotone function $f : A \to A$ on a partially ordered set $A$ with least element $\bot \in A$ and height has a unique least fixed point -- if this sentence means something to you probably saw it coming already, and if it doesn't, it does not matter for this paper.
+
+This explains why some functions from the underlying vanilla data type (such as \verb|Data.Set|'s \verb|difference|) are not available, as they are not monotonic.
+
+\subsection{Termination}
+
+Another function from \verb|Data.Set| that we do not have in \verb|Data.Recursive.Set| is the function \verb|map :: Ord b => (a -> b) -> Set a -> Set b|. This may be a bit surprising, as this function is perfectly monotonic, as it maps smaller sets to smaller sets. But it may cause other problems. Imagine we had it, and wrote
+\begin{verbatim}
+let s = R.insert 0 (R.map (+1) s) in R.get s
+\end{verbatim}
+Does this equation have a solution? Clearly the set \verb|s| needs to contain \verb|0|. But then it also needs to contian \verb|1|. And \verb|2|. And so on. So the solution would have to be the set of all natural numbers, but that is not something that \verb|Data.Set|, being a data structure of \emph{finite} sets, can represent.
+
+So we cannot allow this function for \verb|RSet| if we want to guarantee a result for every finite, possibly recursive expression.
+
+For the theoretically inclined, this plays into the “$A$ has finite height” requirement in the theorem above. You might be irked that the type \verb|Set a|, ordered by subset inclusion, does not actually have finite height (if \verb|a| is not finite). But in the absence of functions like \verb|set|, for every \emph{finite} expression involving our \verb|RSet| we find that there are only finite many possible set members, and thus the relevant “subtype” has finite height, and all is well again.
+
+It would not be unreasonable, however, to add \verb|map| to the \verb|RSet| API, as it may be quite useful for some applications, and maybe in these applications the equation have a solution just fine. If we'd do that, we could no longer \emph{guarantee} termination for all possible expressions (as shown by the example above). But it be the case that if the expression yields a result, it will be the least fixed point of the defining equation. One can argue that this would be fine, as this is what Haskell programmers are used from their Haskell code anyways.
+
+\subsection{The black hole}
+
+We said that “all finite, possibly recursive expressions yield a result”? Unfortunately, that is not completely true: If a value of type \verb|RSet| is defined to be simply itself, with none of the \verb|RSet| operations involved, it will not work:
+\begin{verbatim}
+ghci> let x = x in RS.get x
+fromList ^CInterrupted.
+\end{verbatim}
+And it’s not for lack of a solution: Clearly the empty set is the least solution to the equation \verb|x == x|.
+
+Because our library is but a library, despite the apparent magic inside (which we will uncover in the next section), with a definition like \verb|let x = x| it has no chance to insert its magic.
+
+The problem goes away as soon as any function from the API is involved in the definition, even if it is semantically the identitiy:
+\begin{verbatim}
+ghci> let x = RS.unions [x] in RS.get x
+fromList []
+\end{verbatim}
+
+This is a little stumbling block when using this library. And while programmers are unlikely to write \verb|let x = x| directly, the effect can occur when tying the knot via a lazy data structure. In that case, the programmer is advised to insert a semantic identity function in the right position; the \verb|RS.id :: Set a -> Set a| function can be used for that purpose.
+A programming language that integrates these features first-class could feasibly take care of this automatically.
+
+\section{Under the hood}\label{sec:impl}
+
+We hope that by now you are eager to learn how the \verb|RSet| library is implemented, as a Haskell library, without dedicated compiler support or using compiler plugins. Maybe it even seems impossible, and we agree: The API and specification presented in the previous section \emph{cannot} be implemented in normal, safe, pure Haskell code\footnote{At least we believe it is not possible, and maybe \cref{sec:sat} suffices as proof.}
+
+But it can using \emph{“unsafe”} features; in particular the infamous \verb|unsafePerformIO :: IO a -> a|. But before you turn away in disgust allow us to quote \citet{unsafePerformIO}, the publication that introduced this primitive:
+\begin{quote}
+However “unsafe” is not the same as “wrong”. It simply means that the programmer, not the compiler, must undertake the proof obligation that the program's semantics is unaffected by the moment at which all these side effects take place. [\ldots]
+So, we regard the primitives of this paper as \emph{the raw material from which experienced systems programmers can beautiful abstractions}.
+\end{quote}
+This is our goal; although whether the abstraction presented in \cref{sec:exploration} is beautiful is in the eye of the beholder.
+
+\subsection{A naive implementation}
+
+
+
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{bib}
+
+\appendix
+\section{The imperative code}\label{sec:imp}
+
+In the introduction we mentioned that without the data structure presented in this paper, a programmer likely has to write their reflexive-transitive-closure code with an explicit loop (a tail-recursive \verb|go| function) keeping track of seen nodes:
+\begin{verbatim}
+transitiveImp :: Graph -> Graph
+transitiveImp g = M.fromList [ (v, S.toList (go S.empty [v])) | v <- M.keys g ]
+  where
+    go :: S.Set Int -> [Int] -> S.Set Int
+    go seen [] = seen
+    go seen (v:vs) | v `S.member` seen = go seen vs
+                   | otherwise         = go (S.insert v seen) (g M.! v ++ vs)
+\end{verbatim}
+
+
+\end{document}
