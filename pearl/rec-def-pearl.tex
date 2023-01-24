@@ -1,6 +1,7 @@
 \documentclass[manuscript,screen,acmsmall]{acmart}
 
 \usepackage[capitalise]{cleveref}
+\usepackage{textgreek}
 
 \setcopyright{rightsretained}
 \copyrightyear{2023}
@@ -138,7 +139,7 @@ fromList [(1,[1,2,3]),(2,[1,2,3]),(3,[3])]
 
 \subsection{Contributions}
 
-From the user’s point of view, that’s almost all we have to say: There is a library of types (sets, Booleans, maps) you can use like the conventional one, and suddenly your favorite knot-tying tricks work even better. In \cref{sec:exploration} we'll explore how this library from the user's point of view, before taking a look at how it works under the hood (\cref{sec:impl}), discussing whether calling this \emph{pure} is actually warranted (\cref{sec:discussion}) and finally taking a brief glance at related approaches (\cref{sec:related}).
+From the user’s point of view, that’s almost all we have to say: There is a library of types (sets, Booleans, maps) you can use like the conventional one, and suddenly your favorite knot-tying tricks work even better. In \cref{sec:exploration} we'll explore how this library from the user's point of view, before taking a look at how it works under the hood (\cref{sec:impl}), discussing whether calling this \emph{pure} is actually warranted (\cref{sec:pure}) and finally taking a brief glance at related approaches (\cref{sec:related}).
 
 The main contributions of this paper are
 \begin{itemize}
@@ -169,6 +170,7 @@ module Data.Recursive.Set where  -- imported as RS here
   intersection :: Ord a => RSet a -> RSet a -> RSet a
   member       :: Ord a => a -> RSet a ->      RBool
   null         ::          RSet a ->           RDualBool
+  when         ::          RBool -> RSet a ->  RSet a
   id           ::          RSet a ->           RSet a
 
 module Data.Recursive.Bool where  -- imported as RB here
@@ -411,7 +413,7 @@ The \verb|todo| action itself uses the flag to ensure it is only run once. Only 
 
 This code generalizes easily to the other operations of the \verb|RSet| API, and describes the essence of the idea. It is, however, navie in a few ways that are worth discussing.
 
-\subsubsection{Reentrancy and thread safety.}
+\subsubsection{Reentrancy and thread safety.}\label{sec:thread}
 
 The \verb|done| flag is used to ensure that the \verb|todo| action is run exactly once, but \verb|get| is invoked concurrently, the code above is obvoiusly racy. Even worse: Because this is run from \verb|unsafePerformIO|, even in a single-threaded environment we have to worry about reentrancy. In the library code, this is adressed using careful use of \verb|MVar|, and hidden behind a small abstraction for “possibly recursive \verb|IO|-thunks” in the \verb|System.IO.RecThunk| API.
 
@@ -427,7 +429,7 @@ For example for Booleans, a cell changes its value at most once, from \verb|Fals
 
 Similarly, a propagator library for finite sets can propagate just deltas, instead of always recomputing the full sets from full inputs, to avoid repeating work. (This is not yet implemented in our library, but would be possible without affecting the public API.)
 
-\subsubsection{Space leaks}
+\subsubsection{Space leaks}\label{sec:spaceleak}
 
 Another, maybe subtle, problem with our pure wrapping of an imperative propagator library is that it can easily lead to space leaks.
 
@@ -441,6 +443,89 @@ fromList [42]
 The call to \verb|insert| allocates a new cell and registers it with the cell in \verb|RS.empty|. But \verb|RS.empty| is a \emph{static} value, and will never be garbage collected!
 
 To fix this, we notice that once we are done calculating a value (either because we query it using \verb|get|, or because it is needed in the calculation of such a value), it will never change any further. So our propagator API allows “freezing“ a cell, and our pure wrapper freezes cells after the value is computed.
+
+\section{Is this really pure?}\label{sec:pure}
+
+The API (\cref{fig:api}) presents itself as pure, but the implementation as seen in the previous section, is full of side-effects. This leads to the crucial question: Is this really pure? Did we create a beautiful abstraction, or are the types a lie?
+
+\subsection{What does purity even mean?}
+
+We found that this question is not easy to answer, because there does not exist a single, clear definition of “pure”. This is not the place to give an authorative answer, instead we see it as one contribution of this paper to ask that question once more, hoping that someone will provide a good answer eventually.
+
+Until then, let us look at various langauge properties that we commonly associate with purity, and whether they still old in the presence of our library:
+
+\subsubsection{Type safety.}
+
+Certainly purity ought to imply safety, in particular type safety: What we get out of \verb|RS.get| should really be a valid \verb|Set|, and not some corrupted memory.
+
+It is not hard to break type safety with \verb|unsafePerformIO|, especially when there are mutable references and polymorphism around. Nevertheless, we are fairly confident that our library is type safe.
+
+\subsubsection{No (observable) side effects.}
+
+Our library uses \verb|IO| inside, and clearly we would not consider it to be pure, if inserting \verb|42| into a set would make the computer eject the CD drive. Avoiding such side conditions is obvious and simple.
+
+A bit more subtle is that evaluating \verb|RS.insert 42 rs| \emph{does} change the internals of \verb|rs|, and it is crucial that the these changes stay internal to the library, and are not observable by the programmer. It must not affect what the programmer sees when they run \verb|RS.get rs|, nor the value other values that are part of the same network. If we'd consider space leaks as observable, then \cref{sec:spaceleak} describes such a side-effect issue we had to address.
+
+We believe that our library is free of such space leaks.
+
+\subsubsection{Evaluation order independence.}
+
+Even more, it should not matter in which order the various subexpressions are evaluated. In
+\begin{verbatim}
+ghci> let s1 = RS.insert 42 s2
+ghci|     s2 = RS.insert 23 s3
+ghci|     s3 = RS.delete 42 s1
+ghci| in (RS.get s1, RS.get s2, RS.get s3)
+\end{verbatim}
+we need to get the same result, no matter whether we evaluate the first component of the resulting tuple before the second, or the other way around, or even all in parallel in separate threads.
+
+Achieving this property in our library required some care. Because we wrap our computation in \verb|unsafePerformIO|, we have to expect any of them to happen at almost any time. Simple graph traversal methods, which simply mark a node as “done” before visiting its successors, easily go wrong when a second evaluation hits such a “done” node, even though it is not fully done. Getting this to the point where it seems to be working was non-trivial, as mentioned in \cref{sec:thread}.
+
+\subsubsection{Referential transparency}
+
+Purity is usually understood to support referential transparency. If \verb|x| is defined to be \verb|e|, then we can replace an occurrence \verb|x| with \verb|e|, and vice-versa, without changing the meaning of the program.
+
+Care has to be taken when interpreting this definition in recursive definitions. Of course we do not expect \verb|let x = 1 in x| to be the same as \verb|let x = x in x|, although we merely replaced \verb|1| with \verb|x|.
+
+So is our library still referential transparent? By virtue of calculating a unique fixpiont, it is!  The value of \verb|let rs2 = RS.insert 42 rs1| is the (least) set for which \verb|RS.get rs2 == S.insert 42 (RS.get rs1)| is true, and thus \verb|rs2| and \verb|RS.insert 42 rs1| can be used interchangeable.
+
+\subsubsection{Program equivalences}\label{sec:sat}
+
+Referential transparency enables equational reasoning: rewriting the code according to certain rules, while preserving meaning. Rewriting based on referential transparency is often also called unfolding, or \textdelta-reduction, but there are further program transformations that we expect to preserve semantics. They may be applied by optimizing compiler, used in program verification or simply by a programmer trying to understand the meaning of the code.
+
+Ideally, all program transformations that are meaning-preserving in pure Haskell are still in the presence of our library. Alas, this is not the case: The static argument transformation (SAT), applied in reverse, can now make defined programs undefined.
+
+In Haskell, if we have a recursive function with one parameter, which simply passes on that parameter unchanged in each recursive call, and it is always called with the same argument, we can change its definition to a recursively defined value: We can change
+\begin{verbatim}
+let x y = ... (x y) ... y ... in x e
+\end{verbatim}
+to
+\begin{verbatim}
+let x y = ... x ... e ... in x
+\end{verbatim}
+
+With our library, this transformation can make the difference between termination and non-termination:
+\begin{verbatim}
+ghci> let rs = RS.insert 42 rs in RS.get rs
+fromList [42]
+ghci> let rs y = RS.insert y (rs y) in RS.get (rs 42)
+fromList ^CInterrupted.
+\end{verbatim}
+
+And it seems that this is not a simple infelicity of our implementation, but a fundamental limitation: In the code before our library can get its (magic, \verb|unsafePerformIO|-powered) hands on a \emph{finite} graph of connected values. In transformed code, there is now a recursive function that endlessly creates new values, and our library can never see the full set of equations. It seems that every implementation of \cref{fig:api} will have this problem, which also shows a pure implementation does not exist.
+
+Does this invalidate our claims that we built a beautiful, well-behaved, pure abstraction? In the end that depends on your expectations, and whether the expectation that SAT cannot change the definedness of is to you a crucial aspect of purity, or just a nicety that we can do without, if we have to.
+
+As you consider this, also note that if you include (asymptotic) resource usage in your expectation of program equivalence, then (reverse) SAT is already rather dangerous in Haskell: The nice and fast knot-tied \verb|fibs| from the introduction becomes horribly inefficent once you turn it into \verb|let fibs _ = 0 : 1  : ...|. And because at compilers worry about these things we can be fairly certain that the compiler won't just nilly-will do that transformtion to our code.
+
+
+\subsection{How to prove purity?}
+
+So with the exception of preservation under the inverse static argument transformation, we are fairly optimistic that our library is pure. Ideally we'd like to be sure, and we’d be sure if we could perform a rigorous proof. That not only requires a clear definition of what exactly pure mean, as discussed above, but also a framework that allows us to to reason about lazy programs with \verb|unsafePerformIO|, \verb|IORef|, laziness and (ideally) multiple threads.
+
+Unfortunately, we do not know how to do that.
+
+The maybe most similar result is work by \citet{runST} to prove the encapsulation by \verb|runST :: ST -> a | to be safe, but it does not cover laziness and concurrency yet. We hope that this paper can maybe spurn motivate more work in that direction.
 
 
 
@@ -457,6 +542,7 @@ To fix this, we notice that once we are done calculating a value (either because
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{bib}
 
+\clearpage
 \appendix
 \section{The imperative code}\label{sec:imp}
 
