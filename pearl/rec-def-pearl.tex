@@ -329,9 +329,9 @@ A programming language that integrates these features first-class could feasibly
 
 \section{Under the hood}\label{sec:impl}
 
-We hope that by now you are eager to learn how the \verb|RSet| library is implemented, as a Haskell library, without dedicated compiler support or using compiler plugins. Maybe it even seems impossible, and we agree: The API and specification presented in the previous section \emph{cannot} be implemented in normal, safe, pure Haskell code\footnote{At least we believe it is not possible, and maybe \cref{sec:sat} suffices as proof.}
+We hope that by now you are eager to learn how the \verb|RSet| library is implemented. It is a Haskell library, without dedicated compiler support or using compiler plugins. Maybe this sounds impossible, and we agree: The API and specification presented in the previous section \emph{cannot} be implemented in normal, safe, pure Haskell code\footnote{At least we believe it is not possible, and maybe \cref{sec:sat} suffices as proof.}
 
-But it can using \emph{“unsafe”} features; in particular the infamous \verb|unsafePerformIO :: IO a -> a|. But before you turn away in disgust allow us to quote \citet{unsafePerformIO}, the publication that introduced this primitive:
+But it can be implemented using \emph{“unsafe”} features; in particular the infamous function \verb|unsafePerformIO :: IO a -> a|, which allows arbitrary side-effects in pure code. But before you turn away in disgust allow us to quote \citet{unsafePerformIO}, the publication that introduced this primitive:
 \begin{quote}
 However “unsafe” is not the same as “wrong”. It simply means that the programmer, not the compiler, must undertake the proof obligation that the program's semantics is unaffected by the moment at which all these side effects take place. [\ldots]
 So, we regard the primitives of this paper as \emph{the raw material from which experienced systems programmers can beautiful abstractions}.
@@ -339,6 +339,117 @@ So, we regard the primitives of this paper as \emph{the raw material from which 
 This is our goal; although whether the abstraction presented in \cref{sec:exploration} is beautiful is in the eye of the beholder.
 
 \subsection{A naive implementation}
+
+The core idea behind the implementation can be expained in two simple steps: First, with an imperative API to declare values, register their relationships and read their values, and then wrapping that in a pure and lazy-enough way. We’ll begin with a naive implementation that initially ignores issues of reentrancy-safety, modularity, performance and space-leaks.
+
+\subsection{An imperative core}
+
+A typical \emph{imperative} API to describe and then solve a set of recursive equations provides functions to (1) register variables, or \emph{cells}, (2) define their relationships and (3) finally read their values. To keep the example code small, we focus on just sets and insertion as the only operation, and could imagine an API like the following:
+\begin{verbatim}
+data Cell a
+newCell      :: IO (Cell a)
+cellIsInsert :: Ord a => Cell a -> a -> Cell a -> IO ()
+getCell      :: Cell a -> IO (Set a)
+\end{verbatim}
+
+A typical use of this API, solving a mutally recursive set equation, could be
+\begin{verbatim}
+ghci> c1 <- newCell
+ghci> c2 <- newCell
+ghci> cellIsInsert c1 42 c2
+ghci> cellIsInsert c2 23 c1
+ghci> getCell c2
+fromList [23,42]
+\end{verbatim}
+
+At this point, the actual implementation of this API is not that interesting: In a simple implementation a cell would consist of a current value (initialized to the empty set), and a list of cells depending on this current value, and then change due to \verb|cellIsInsert| are propagated through this network until no more changes need to be propagated.
+
+\subsection{The pure wrapping}
+
+The more interesting question is how to get from the imperative \verb|Cell| code to the pure \verb|RSet| API, with \verb|insert :: a -> RSet a -> RSet a| and \verb|get :: RSet a -> Set a|?
+
+Clearly, \verb|insert| must somehow both create a new cell, and define its equation.
+Furthermore, it has to be lazy in its second argument, else a recursive equation will immediatelly loop, so it somehow has to defer using \verb|cellIsInsert| later. This leads to the code seen in \cref{fig:wrap}, which we can go through in detail:
+
+\begin{figure}
+\begin{verbatim}
+data RSet a = RSet (Cell a) (IO ()) (IORef Bool)
+
+insert :: Ord a => a -> RSet a -> RSet a
+insert x r2 = unsafePerformIO $ do
+  c1 <- newCell
+  done <- newIORef False
+  let todo = do
+        is_done <- readIORef done
+        unless is_done $ do
+          writeIORef done True
+          let (RSet c2 todo2 _) = r2
+          cellIsInsert c1 x c2
+          todo2
+  return (RSet c1 todo done)
+
+get :: RSet a -> Set a
+get (RSet c todo _) = unsafePerformIO $ do
+  todo
+  getCell c
+\end{verbatim}
+\caption{Wrapping an imperative propagator library in a pure way}\label{fig:wrap}
+\end{figure}
+
+A value of type \verb|RSet| consist of three fields
+\begin{itemize}
+\item The \verb|Cell a| backing the value we are defining.
+\item An \verb|IO ()| action, deferred until the the value is actually read with \verb|get|.
+\item A flag to remember if that deferred action has run already.
+\end{itemize}
+
+The function \verb|get| does not do much: It triggers the \verb|todo| action, and afterwards returns the current value of the cell. The interesting bits are in the \verb|insert| function: It creates a new cell to represent the result, and a “done”-flag. It then returns these together with a \verb|todo|-action, which is \emph{not yet run}. Note that the second argument, \verb|r2|, is \emph{not} looked at yet, so \verb|insert| is lazy.
+
+The \verb|todo| action itself uses the flag to ensure it is only run once. Only now the value \verb|r2| is analysed, and the relationship between the cells is registered. It also runs the \verb|todo| action of the other cell. This way, a single \verb|get| will recursively trigger the \verb|todo| actions of all involved values (and the flags prevent running in circles).
+
+\subsection{Less naively, please}
+
+This code generalizes easily to the other operations of the \verb|RSet| API, and describes the essence of the idea. It is, however, navie in a few ways that are worth discussing.
+
+\subsubsection{Reentrancy and thread safety.}
+
+The \verb|done| flag is used to ensure that the \verb|todo| action is run exactly once, but \verb|get| is invoked concurrently, the code above is obvoiusly racy. Even worse: Because this is run from \verb|unsafePerformIO|, even in a single-threaded environment we have to worry about reentrancy. In the library code, this is adressed using careful use of \verb|MVar|, and hidden behind a small abstraction for “possibly recursive \verb|IO|-thunks” in the \verb|System.IO.RecThunk| API.
+
+While writing this code, the dejafu test library \citep{dejafu}, which can exhaustively explore all possible interleavings of concurent code, has proven invaluable: more than once we thought we had made the implementation obviously thead-safe, only to be told that we were still far off.
+
+\subsubsection{Modularity.}
+
+The navie code above supports just one value type, (\verb|Set|), because the underlying imperative propagator library \verb|Cell| only supports that type. The full library abstracts over the underlying propagator. This way we can have recursively defined values of different types (\verb|RSet a|, \verb|RBool|), operations connecting them (e.g.\ \verb|members|) and allow mixed recursive equations.
+
+Supporting different propagator libraries also opens the way for important performance optimizations that are specific to various value types. The most generic propagator implementation assumes no structure on its values besides equality (\verb|Eq|), and just keeps propagating changes until the graph has stabilized. But if we can have different propagator implementations for different values, smarter propagator libraries ca be writen:
+
+For example for Booleans, a cell changes its value at most once, from \verb|False| to \verb|True|. Once it is already \verb|True|, it will never change again, and one can omit propagating further information (see the \verb|Data.Propagator.P2| module).
+
+Similarly, a propagator library for finite sets can propagate just deltas, instead of always recomputing the full sets from full inputs, to avoid repeating work. (This is not yet implemented in our library, but would be possible without affecting the public API.)
+
+\subsubsection{Space leaks}
+
+Another, maybe subtle, problem with our pure wrapping of an imperative propagator library is that it can easily lead to space leaks.
+
+Consider the \verb|insert| function. With \verb|rs2 = RS.insert x rs1| we create a new mutable cell for \verb|rs2|, and tells the mutable cell in \verb|rs1| to notify the other cell of any changes. This means that now somewhere in \verb|rs1| there is a reference to \verb|rs2| -- exactly the other way around from what you would expect from the code. So the resources allocated for \verb|rs2| cannot be freed while \verb|rs1| is alive.
+
+This can cause space leaks, where allocated resources are kept alive longer than expected or needed. As an extreme example, consider now this interaction
+\begin{verbatim}
+ghci> RS.get (RS.insert 42 RS.empty)
+fromList [42]
+\end{verbatim}
+The call to \verb|insert| allocates a new cell and registers it with the cell in \verb|RS.empty|. But \verb|RS.empty| is a \emph{static} value, and will never be garbage collected!
+
+To fix this, we notice that once we are done calculating a value (either because we query it using \verb|get|, or because it is needed in the calculation of such a value), it will never change any further. So our propagator API allows “freezing“ a cell, and our pure wrapper freezes cells after the value is computed.
+
+
+
+
+
+
+
+
+
 
 
 
