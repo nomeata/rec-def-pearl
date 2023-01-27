@@ -279,7 +279,7 @@ ghci> let x = x RDB.|| x in RDB.get x
 True
 \end{verbatim}
 
-\subsection{Monotonicity}
+\subsection{Monotonicity}\label{sec:monotonicity}
 
 These data types -- \verb|RSet|, \verb|RBool|, \verb|RDualBool| are not silos, and you will find amongt the functions in \cref{fig:api} some that connect these types -- negation on booleans, member checks on sets, and the emptiness check on sets.
 This means that even recursive expressions involving multiple of these types yield will produce a result.
@@ -291,7 +291,7 @@ If we did not pay attention to this while defining the API, and added non-monoto
 let x = not x
 \end{verbatim}
 
-The underlying bit of theory is the theorem that a monotone function $f : A \to A$ on a partially ordered set $A$ with least element $\bot \in A$ and height has a unique least fixed point -- if this sentence means something to you probably saw it coming already, and if it doesn't, it does not matter for this paper.
+The underlying bit of theory is the theorem that a monotone function $f : A \to A$ on a partially ordered set $A$ with least element $\bot \in A$ and height has a unique least fixed point. This is well-known (e.g.\ \citet{lazyleast}), and if the sentence means something to you, you probably already saw it coming. But if it doesn't, it does not matter for reading this paper.
 
 This explains why some functions from the underlying vanilla data type (such as \verb|Data.Set|'s \verb|difference|) are not available, as they are not monotonic.
 
@@ -311,7 +311,7 @@ It would not be unreasonable, however, to add \verb|map| to the \verb|RSet| API,
 
 \subsection{The black hole}
 
-We said that “all finite, possibly recursive expressions yield a result”? Unfortunately, that is not completely true: If a value of type \verb|RSet| is defined to be simply itself, with none of the \verb|RSet| operations involved, it will not work:
+We said that “all finite, possibly recursive expressions yield a result”. Unfortunately, that is not completely true: If a value of type \verb|RSet| is defined to be simply itself, with none of the \verb|RSet| operations involved, it will not work:
 \begin{verbatim}
 ghci> let x = x in RS.get x
 fromList ^CInterrupted.
@@ -344,7 +344,7 @@ This is our goal; although whether the abstraction presented in \cref{sec:explor
 
 The core idea behind the implementation can be expained in two simple steps: First, with an imperative API to declare values, register their relationships and read their values, and then wrapping that in a pure and lazy-enough way. We’ll begin with a naive implementation that initially ignores issues of reentrancy-safety, modularity, performance and space-leaks.
 
-\subsection{An imperative core}
+\subsection{An imperative core}\label{sec:impcore}
 
 A typical \emph{imperative} API to describe and then solve a set of recursive equations provides functions to (1) register variables, or \emph{cells}, (2) define their relationships and (3) finally read their values. To keep the example code small, we focus on just sets and insertion as the only operation, and could imagine an API like the following:
 \begin{verbatim}
@@ -415,11 +415,11 @@ This code generalizes easily to the other operations of the \verb|RSet| API, and
 
 \subsubsection{Reentrancy and thread safety.}\label{sec:thread}
 
-The \verb|done| flag is used to ensure that the \verb|todo| action is run exactly once, but \verb|get| is invoked concurrently, the code above is obvoiusly racy. Even worse: Because this is run from \verb|unsafePerformIO|, even in a single-threaded environment we have to worry about reentrancy. In the library code, this is adressed using careful use of \verb|MVar|, and hidden behind a small abstraction for “possibly recursive \verb|IO|-thunks” in the \verb|System.IO.RecThunk| API.
+The \verb|done| flag is used to ensure that the \verb|todo| action is run exactly once, but \verb|get| is invoked concurrently, the code above is obvoiusly racy. Even worse: Because this is run from \verb|unsafePerformIO|, even in a single-threaded environment we have to worry about reentrancy. In the library code, this is adressed using careful use of \verb|MVar| \cite{concurrent}, and hidden behind a small abstraction for “possibly recursive \verb|IO|-thunks” in the \verb|System.IO.RecThunk| API.
 
-While writing this code, the dejafu test library \citep{dejafu}, which can exhaustively explore all possible interleavings of concurent code, has proven invaluable: more than once we thought we had made the implementation obviously thead-safe, only to be told that we were still far off.
+While writing this code, the dejafu test library \citep{dejafu}, which can exhaustively explore all possible interleavings of concurent code, has proven invaluable: more than once we thought we had finally achieved thead-safety, only to be told that we were still far off.
 
-\subsubsection{Modularity.}
+\subsection{Modularity.}
 
 The navie code above supports just one value type, (\verb|Set|), because the underlying imperative propagator library \verb|Cell| only supports that type. The full library abstracts over the underlying propagator. This way we can have recursively defined values of different types (\verb|RSet a|, \verb|RBool|), operations connecting them (e.g.\ \verb|members|) and allow mixed recursive equations.
 
@@ -444,31 +444,32 @@ The call to \verb|insert| allocates a new cell and registers it with the cell in
 
 To fix this, we notice that once we are done calculating a value (either because we query it using \verb|get|, or because it is needed in the calculation of such a value), it will never change any further. So our propagator API allows “freezing“ a cell, and our pure wrapper freezes cells after the value is computed.
 
-\section{Is this really pure?}\label{sec:pure}
+\section{Is this still Haskell?}\label{sec:pure}
 
-The API (\cref{fig:api}) presents itself as pure, but the implementation as seen in the previous section, is full of side-effects. This leads to the crucial question: Is this really pure? Did we create a beautiful abstraction, or are the types a lie?
+The library presents itself with a innocent looking, pure and simple interface (\cref{fig:api}), but the implementation is full of side-effects (as seen in \cref{sec:impl}).
+Does this leak, or is does programming still feel like programming Haskell?
+Is this really pure? Did we create a beautiful abstraction, or are the types a lie?
 
 \subsection{What does purity even mean?}
 
-We found that this question is not easy to answer, because there does not exist a single, clear definition of “pure”. This is not the place to give an authorative answer, instead we see it as one contribution of this paper to ask that question once more, hoping that someone will provide a good answer eventually.
+We found that this question is not easy to answer, because there does not exist a single, clear and widely accepted definition of “pure”.
+This paper is not the place to give an authorative answer, but we can look at various langauge properties that are commonly associated with a pure  (and some associated with Haskell in particular), and see whether they still hold in the presence of our library:
 
-Until then, let us look at various langauge properties that we commonly associate with purity, and whether they still old in the presence of our library:
+\subsection{Type safety.}
 
-\subsubsection{Type safety.}
+Certainly purity ought to imply memory- and in type safety: What we get out of \verb|RS.get| should really be a valid \verb|Set|, and not some corrupted memory.
 
-Certainly purity ought to imply safety, in particular type safety: What we get out of \verb|RS.get| should really be a valid \verb|Set|, and not some corrupted memory.
+It is not hard to break type safety with \verb|unsafePerformIO|, especially when there are mutable references and polymorphism around. Nevertheless, we are fairly confident that our library is type and memory safe.
 
-It is not hard to break type safety with \verb|unsafePerformIO|, especially when there are mutable references and polymorphism around. Nevertheless, we are fairly confident that our library is type safe.
+\subsection{No (observable) side effects.}
 
-\subsubsection{No (observable) side effects.}
+Our library uses \verb|IO| inside, and clearly we would not consider it to be pure if inserting \verb|42| into a set would make the computer eject the CD drive. Avoiding these kind of side effects is obvious and simple -- we just don't do it.
 
-Our library uses \verb|IO| inside, and clearly we would not consider it to be pure, if inserting \verb|42| into a set would make the computer eject the CD drive. Avoiding such side conditions is obvious and simple.
+However, \verb|RS.insert 42 rs| \emph{does} destrucively modify mutable data structures inside of \verb|rs|. It is crucial that these changes stay internal to the library, and are not observable by the programmer. It must not affect what the programmer sees when they run \verb|RS.get rs|, nor any other \emph{observable} values. Again, we believe that this is the case.
 
-A bit more subtle is that evaluating \verb|RS.insert 42 rs| \emph{does} change the internals of \verb|rs|, and it is crucial that the these changes stay internal to the library, and are not observable by the programmer. It must not affect what the programmer sees when they run \verb|RS.get rs|, nor the value other values that are part of the same network. If we'd consider space leaks as observable, then \cref{sec:spaceleak} describes such a side-effect issue we had to address.
+Note that the space leak issue described in \cref{sec:spaceleak} is almost an issue of this kind: If we’d include speace leaks in our notion of “observable behaviour”, then there we had such a side-effect issue we had to address.
 
-We believe that our library is free of such space leaks.
-
-\subsubsection{Evaluation order independence.}
+\subsection{Evaluation order independence.}
 
 Even more, it should not matter in which order the various subexpressions are evaluated. In
 \begin{verbatim}
@@ -479,21 +480,30 @@ ghci| in (RS.get s1, RS.get s2, RS.get s3)
 \end{verbatim}
 we need to get the same result, no matter whether we evaluate the first component of the resulting tuple before the second, or the other way around, or even all in parallel in separate threads.
 
-Achieving this property in our library required some care. Because we wrap our computation in \verb|unsafePerformIO|, we have to expect any of them to happen at almost any time. Simple graph traversal methods, which simply mark a node as “done” before visiting its successors, easily go wrong when a second evaluation hits such a “done” node, even though it is not fully done. Getting this to the point where it seems to be working was non-trivial, as mentioned in \cref{sec:thread}.
+Achieving this in our library required some care. Because we wrap our computation in \verb|unsafePerformIO|, we have to expect any of them to happen at almost any time. Simple graph traversal methods, which simply mark a node as “done” before visiting its successors, easily go wrong when a second evaluation hits such a supposedly “done” node, while the first traversal is still processing the graph. Getting this to the point where it seems to be working was non-trivial, as mentioned in \cref{sec:thread}.
 
-\subsubsection{Referential transparency}
+\subsection{Referential transparency}
 
-Purity is usually understood to support referential transparency. If \verb|x| is defined to be \verb|e|, then we can replace an occurrence \verb|x| with \verb|e|, and vice-versa, without changing the meaning of the program.
+Purity is usually understood to also imply referential transparency: If \verb|x| is defined to be \verb|e|, then we can replace an occurrence \verb|x| with \verb|e|, and vice-versa, without changing the meaning of the program.
 
 Care has to be taken when interpreting this definition in recursive definitions. Of course we do not expect \verb|let x = 1 in x| to be the same as \verb|let x = x in x|, although we merely replaced \verb|1| with \verb|x|.
 
 So is our library still referential transparent? By virtue of calculating a unique fixpiont, it is!  The value of \verb|let rs2 = RS.insert 42 rs1| is the (least) set for which \verb|RS.get rs2 == S.insert 42 (RS.get rs1)| is true, and thus \verb|rs2| and \verb|RS.insert 42 rs1| can be used interchangeable.
 
-\subsubsection{Program equivalences}\label{sec:sat}
+This restriction to fixpoints, i.e.\ to solutions of a set of equations, puts a clear limit on the kind of observations we allow the programmer to make about the recursive sets. For example, it would not be pure if the programmer could obtain the number of cells taking part in the current recursion. This rules out this pure embedding for applications where the graph structure of the equations (and not just a solution of the equations) is of interest, e.g.\ generating circuit descriptions (\cite{circuits}).
 
-Referential transparency enables equational reasoning: rewriting the code according to certain rules, while preserving meaning. Rewriting based on referential transparency is often also called unfolding, or \textdelta-reduction, but there are further program transformations that we expect to preserve semantics. They may be applied by optimizing compiler, used in program verification or simply by a programmer trying to understand the meaning of the code.
+\subsection{Program equivalences}
 
-Ideally, all program transformations that are meaning-preserving in pure Haskell are still in the presence of our library. Alas, this is not the case: The static argument transformation (SAT), applied in reverse, can now make defined programs undefined.
+Referential transparency is a crucial ingredient to equational reasoning: rewriting the code according to a set of rules, while preserving its meaning. Replacing \verb|x| with its definition \verb|e| is called unfolding, or \textdelta-reduction, but there are further program transformations that we expect to preserve semantics.  They may be applied by optimizing compiler, used in program verification or simply by a programmer trying to understand the meaning of the code.
+
+Ideally, all program transformations that are meaning-preserving in pure Haskell are still in the presence of our library. This is especially important for those transformations applied by the Haskell compiler, such as partial evaluation, case-of-case, worker/wrapper etc.\ (\cite{optimiser}). Because of the nice equational properties of our library, we are fairly certain that all these are still meaning-preserving in the presence of our library.
+
+We’ would have to worry if there were transformations would could break recursive sharing, as this sharing is crucial for our library, but the compiler is already very careful not to untie any knots.
+
+\subsection{The (reverse) SAT}\label{sec:sat}
+
+There is, however, a transformation that is meaning-preserving in Haskell, but in the presence of our library can make terminating programs non-terminating:
+The static argument transformation (SAT), applied in reverse.
 
 In Haskell, if we have a recursive function with one parameter, which simply passes on that parameter unchanged in each recursive call, and it is always called with the same argument, we can change its definition to a recursively defined value: We can change
 \begin{verbatim}
@@ -503,8 +513,9 @@ to
 \begin{verbatim}
 let x y = ... x ... e ... in x
 \end{verbatim}
+without changing the program's meaning.
 
-With our library, this transformation can make the difference between termination and non-termination:
+With our library, this transformation can now make the difference between termination and non-termination:
 \begin{verbatim}
 ghci> let rs = RS.insert 42 rs in RS.get rs
 fromList [42]
@@ -512,31 +523,79 @@ ghci> let rs y = RS.insert y (rs y) in RS.get (rs 42)
 fromList ^CInterrupted.
 \end{verbatim}
 
-And it seems that this is not a simple infelicity of our implementation, but a fundamental limitation: In the code before our library can get its (magic, \verb|unsafePerformIO|-powered) hands on a \emph{finite} graph of connected values. In transformed code, there is now a recursive function that endlessly creates new values, and our library can never see the full set of equations. It seems that every implementation of \cref{fig:api} will have this problem, which also shows a pure implementation does not exist.
+This is not a simple infelicity of our implementation, but a fundamental limitation: In the original program, our library can get its (magic, \verb|unsafePerformIO|-powered) hands on a \emph{finite} graph of connected values. In the transformed program there is now a recursive function that endlessly creates new values, and our library can never see a complete set of equations. It seems that no implementation of the interface in \cref{fig:api} can solve this problem -- this shows that a pure implementation does not exist.
 
-Does this invalidate our claims that we built a beautiful, well-behaved, pure abstraction? In the end that depends on your expectations, and whether the expectation that SAT cannot change the definedness of is to you a crucial aspect of purity, or just a nicety that we can do without, if we have to.
+So does this invalidate our claims that we built a beautiful, well-behaved, pure abstraction? In the end that depends on your expectation: Do you expect that in a pure language the SAT preserves meaning, including termination? Or is that an additional property of the language that you can do without?
 
-As you consider this, also note that if you include (asymptotic) resource usage in your expectation of program equivalence, then (reverse) SAT is already rather dangerous in Haskell: The nice and fast knot-tied \verb|fibs| from the introduction becomes horribly inefficent once you turn it into \verb|let fibs _ = 0 : 1  : ...|. And because at compilers worry about these things we can be fairly certain that the compiler won't just nilly-will do that transformtion to our code.
+As you ponder this question, note that if you include (asymptotic) resource usage in your expectation of program equivalence, then (reverse) SAT is already rather dangerous in Haskell: The nice and fast knot-tied \verb|fibs| from the introduction becomes horribly inefficent once you turn it into a recursive \emph{function} (\verb|let fibs _ = 0 : 1  : ...|). And because the compiler care about the (asymptotic) resource usage, we can be fairly certain that it will not just nilly-will transform our code like that.
+
+\Citet[Fact 3.7]{sabry} points out that merely changing the set of observational equivalences does \emph{not} imply that the extended langauge is not pure.
+
+\subsection{Sabry's criterion}
+
+One possible definition for purity is offered by \citet{sabry}:
+\begin{quote}
+A language is purely functional if (i) it includes every simply typed λ-calculus term, and
+(ii) its call-by-name, call-by-need, and call-by-value implementations are equivalent (modulo
+divergence and errors).
+\end{quote}
+
+It is not straight-forward to apply this criterion to our library, or Haskell itself, because it assumes the existence of these three implementations, and we do not have that for Haskell. Even if we had, in the call-by-value implemenation, all our recursive definitions would vacuously loop, and in the call-by-name implementation (which very like after the reverse static argument transformation), our library would not see \emph{finite} graphs, so all interesting programs would become no-terminating. In that sense, however, our libray \emph{is} pure according to Sabry’s criterion.
+
+Because it requires multiple implementations we find Sabry’s criterion of purity not fully convincing. Maybe there exists a suitable criterion that works with a single language semenatics, maybe by listing observable equivalences that must hold for a language to be considered pure?
+We'll leave this question hanging, hoping it can tempt someone to give a satisfying answer.
+
+% \subsection{Denotational semantics}
+% 
+% Pure functional programs can be given meaning not just via their actual implementation, or the pen-and-paper equivalent, their operational semantics, but also via denotaional semantics. These map every language construct compositionally to a mathematical model.
 
 
-\subsection{How to prove purity?}
+\subsection{How to prove it?}
 
-So with the exception of preservation under the inverse static argument transformation, we are fairly optimistic that our library is pure. Ideally we'd like to be sure, and we’d be sure if we could perform a rigorous proof. That not only requires a clear definition of what exactly pure mean, as discussed above, but also a framework that allows us to to reason about lazy programs with \verb|unsafePerformIO|, \verb|IORef|, laziness and (ideally) multiple threads.
+So with the exception of preservation under the inverse static argument transformation, we are fairly confident that our library is as pure as advertised. Ideally we'd like to be sure, and we’d be sure if we could perform a rigorous proof.  That not only requires a clear definition of what exactly “pure“ means, as discussed above, but also a framework that allows us to to reason about lazy programs with \verb|unsafePerformIO|, \verb|IORef|, laziness and (ideally) multiple threads.
 
-Unfortunately, we do not know how to do that.
+Unfortunately, we do not know how to do that well. In the single-threaded world we could imagine extending an operational semantics for lazy languages such as \citeauthor{launchbury}’s [\citeyear{launchbury}] natural semantics for lazy evaluation with a global store for the mutable variables, and spurious evaluations for \verb|unsafePerformIO|, but it seems hard and we have not even added threads.
 
-The maybe most similar result is work by \citet{runST} to prove the encapsulation by \verb|runST :: ST -> a | to be safe, but it does not cover laziness and concurrency yet. We hope that this paper can maybe spurn motivate more work in that direction.
-
-
-
-
+The maybe most similar work is done  by \citet{runST}, who proved the encapsulation by \verb|runST :: ST -> a | to be safe, but it does not yet cover laziness nor concurrency.
+They used the Iris framework, in that context one even finds a mechanized proof of the correctness of a generic fixpoint solver \citep{spygame}.
+It seems that important building blocks are already there, and we hope that this paper can maybe spurn motivate more work in that direction.
 
 
+\section{Related work}
+
+The present work draws inspiration from and connects to various directions.
+
+\subsection{Fixpoint solvers and propagation networks}
+
+\Cref{sec:impcore} describes the “imperative core” of our library: A underlying library that allows us to declare the cells of a possibly cyclic graph of values, and their relations, let that library determine the solution, and then read it off. For the purposes of this paper we can assume this to be a black box, and avoid getting distracted by questions related to the theory and implementation of this black box, which is good, as there is much interesting than can be said and done here.
+
+All the work in making fixpoint solvers and data-flow analyses efficient is relevant here \citep{kildall-73,kam-ullman-76}. An important difference to typical data-flow analyses is that in order to stay pure, we cannot afford to make conservative approximations.
+
+Also related is the concept of \emph{propagator network} \citep{propagator}, although but our use-case is a bit simpler, as information only flows in one direction along an edge, and once we queried the value of one node, we never add more constraints that would influence that node.
+
+%\subsection{LVars}
+%
+% One might wonder if Lindsey Kuper's LVar library can be used to implement
+
+\subsection{Shallow graph embeddings and observable sharing}
+
+\Citet{observable-sharing} made sharing observable in Haskell, so that they can very elegantly describe logic circuits in Haskell. They extend pure Haskell with operations that one might dismiss as unpure (observable object identity), point out that this breaks some equational equivalences of Haskell, but that this may be acceptable, given that some of these code transformations are not benign to begin with, as they can dupliate arbitrary amount of work anyways -- a line of reasoning you may recognize fron \cref{sec:pure}.
+
+Their extension to Haskell is, in a way, bolder: It breaks more laws (referential transparency) in order to make the structure of the embedded graph observable, as necessary for their poster user-case. With our library, you \emph{cannot} observe the structure of the graph; you only get your hands on a unique fixpoint, which naturally limits the use-cases.
+
+We probably could have implemented our library on top of the observable sharing extension, reifying the graph of values as a data structure, naming the nodes, and solving it this way. We chose to do it differently, and instead use Haskell's laziness and \verb|unsafePerformIO| (which will be executed once per value) to create a unique mutable cells, let those cells refer to each other. So the graph is never actually turned into a (Haskell-level) graph data structure and the cells are not numbered or named; instead the graphs remains on the heap, cells are implicitly identified by their object identity, and the bookkeeping data for each cell is stored within its mutable fields.
 
 
+Peeking beyond Haskell we should point out CoCaml \citep{cocaml}, which allows the Ocaml programmer to observe the structure of knot-tied (coinductive) data, and even process it while preserving the sharing (so that a \verb|map| over a cylic list is still cyclic).
 
 
+\subsection{Logic programming}
 
+For the kind of use-cases presented here, logic programming languages like Prolog and Datalog are certainly on their home turf. What we bring to the table here is the seamless integration into a purely functional language.
+
+Particularly close to our work, and straddling the functional and logic programming paradigms, is the \emph{Datafun} language \citep{datafun}, a pure and total functional programming language generalizing Datalog, which can declaratively express and compute fixed points of monotone maps on semilattices -- exactly what we are trying to to do. Since they tailor the langauge around this idea, their type system allows the definition of higher-order \emph{monotonic} functions.
+
+Monotonicity is crucial for the existence and uniqueness of a solution (\cref{sec:monotonicity}), and our solution is to simply restrict the interface (\cref{fig:api}) to only expose monotonic functions. This works, but can become quite limiting when it comes to higher-order functions. Assume we'd want to support recursively-definable finite maps as well. A natural order on finite maps is the point-wise ordering. But with that ordering, higher-order operations like \verb|map :: (a -> b) -> RMap k a -> RMap k b| are only monotonic if the argument is monotonic, and Haskell's type system does not allow us to express that constraint. Without these higher-order functions, however, the map API would be quite impoverished, so we do not support finite maps with the point-wise ordering in our library.\footnote{You might notice the \texttt{Data.Recursive.Map} module in the package. This implements maps with the \emph{discrete} ordering on values, where all higher order function arguments are vacuously monotonic, thus avoiding this issue.} Datafun's type system has a separate function arrow $\xrightarrow{+}$ to express monotonic arrows, and thus supports this use-case.
 
 
 \bibliographystyle{ACM-Reference-Format}
