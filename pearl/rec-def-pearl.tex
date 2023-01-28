@@ -234,8 +234,6 @@ ghci| in (RS.get s1, RS.get s2, RS.get s3)
 
 In these examples, we built the graph of recursively defined \verb|RSet| values explicitly, using \verb|let|, to have a good look at them. In practice one would more likely construct that graph using lazy data structres and knot-tying, maybe dynamically based on some input, as done in the example.
 
-TODO: Another bigger example maybe? Maybe \url{https://www.joachim-breitner.de/blog/794-rec-def__Program_analysis_case_study}? Here or in the appendix?
-
 \subsection{Fixpoints}
 
 It a positive surprise that these expressions are productive, i.e.\ that we even obtain a result. But it is the right result? If we look at the last expression above we can see that the vanilla sets we get for each of the variable make their defining equation an equality:
@@ -299,7 +297,7 @@ This explains why some functions from the underlying vanilla data type (such as 
 
 Another function from \verb|Data.Set| that we do not have in \verb|Data.Recursive.Set| is the function \verb|map :: Ord b => (a -> b) -> Set a -> Set b|. This may be a bit surprising, as this function is perfectly monotonic, as it maps smaller sets to smaller sets. But it may cause other problems. Imagine we had it, and wrote
 \begin{verbatim}
-let s = R.insert 0 (R.map (+1) s) in R.get s
+let s = RS.insert 0 (RS.map (+1) s) in RS.get s
 \end{verbatim}
 Does this equation have a solution? Clearly the set \verb|s| needs to contain \verb|0|. But then it also needs to contian \verb|1|. And \verb|2|. And so on. So the solution would have to be the set of all natural numbers, but that is not something that \verb|Data.Set|, being a data structure of \emph{finite} sets, can represent.
 
@@ -309,7 +307,7 @@ For the theoretically inclined, this plays into the “$A$ has finite height” 
 
 It would not be unreasonable, however, to add \verb|map| to the \verb|RSet| API, as it may be quite useful for some applications, and maybe in these applications the equation have a solution just fine. If we'd do that, we could no longer \emph{guarantee} termination for all possible expressions (as shown by the example above). But it be the case that if the expression yields a result, it will be the least fixed point of the defining equation. One can argue that this would be fine, as this is what Haskell programmers are used from their Haskell code anyways.
 
-\subsection{The black hole}
+\subsection{The black hole}\label{sec:blackhole}
 
 We said that “all finite, possibly recursive expressions yield a result”. Unfortunately, that is not completely true: If a value of type \verb|RSet| is defined to be simply itself, with none of the \verb|RSet| operations involved, it will not work:
 \begin{verbatim}
@@ -328,6 +326,100 @@ fromList []
 
 This is a little stumbling block when using this library. And while programmers are unlikely to write \verb|let x = x| directly, the effect can occur when tying the knot via a lazy data structure. In that case, the programmer is advised to insert a semantic identity function in the right position; the \verb|RS.id :: Set a -> Set a| function can be used for that purpose.
 A programming language that integrates these features first-class could feasibly take care of this automatically.
+
+\subsection{Case study: a program analysis}
+
+Before we leave the user's point of view and look under the hood of the library, let us conclude the section with a slight larger and more realistic use-case. We hope that this example shows that using recursively definable values can make the code noticably more declarative and elegant.
+
+The example is a small program analysis of a functional language with lazy let-bindings, (mutual) recursion and exceptions that determines whether evaluating an expression may throw an (uncaught) expression. To set the stage, \cref{fig:analast} contains a Haskell Datatype for a typical abstract syntax. The \verb|LetRec| constructor takes a list of bound variables with their definition's  right-hand side, and a body; all variables are in scope in all the right-hand sides and the body.
+(The resemblance to GHC's intermediate langauge Core \citep{secrets} is certainly not accidential.)
+
+\begin{figure}
+\begin{verbatim}
+type Var = String
+data Exp = Var Var | Lam Var Exp | App Exp Exp | Throw | Catch Exp
+         | Let Var Exp Exp | LetRec [(Var, Exp)] Exp
+\end{verbatim}
+\caption{An AST for a functional language with mutual recursion and exceptions}
+\label{fig:analast}
+\end{figure}
+
+Let us ignore the \verb|LetRec| at first, and write that analysis as a simple traversal of the AST:
+\begin{verbatim}
+canThrow :: Exp -> Bool
+canThrow e = go M.empty e where
+    go :: M.Map Var Bool -> Exp -> Bool
+    go env (Var v)          = env M.! v
+    go env Throw            = True
+    go env (Catch e)        = False
+    go env (Lam v e)        = go (M.insert v False env) e
+    go env (App e1 e2)      = go env e1 || go env e2
+    go env (Let v e1 e2)    = go env' e2
+      where
+        env_bind = M.singleton v (go env e1)
+        env' = M.union env_bind env
+\end{verbatim}
+
+Becuase our let-bindings are lazy, to determine whether evaluating a variable can throw we carry an environment of type \verb|M.Map Var Bool| around where we remember whether the corresponding right-hand could throw. \verb|Throw| and \verb|Catch| certainly can resp.\ cannot throw. The analysis isn't higher order, so for lambdas we assume they can throw their body can throw, and for applications when either subexpression can throw. And finally for \verb|Let|, we extend the envionment with the analysis result of the bound variable and descend.
+
+So far, so standard. But what about \verb|LetRec|? Here, the analysis result of each right-hand side depends on the analysis results of all right-hand sides. We can just try to do what we did in the \verb|Let| case, and write:
+\begin{verbatim}
+    go env (LetRec binds e) = go env' e where
+        env_bind = M.fromList [ (v, go env' e) | (v,e) <- binds ]
+        env' = M.union env_bind env
+\end{verbatim}
+Note that, crucially, we use the extended environment \verb|env'| not only for the body, but also for the right-hand sides.
+
+Alas, this does not work: As soon as we try to analyze an expression with recursion, we will fall into a black hole. And the reason is that \verb|Bool| is not recursively definiable, because the operations (here only disjunction, \verb+(||)+) is not lazy enough.
+
+But if we use \verb|RBool| instead of \verb|Bool|, the this code just works:
+\begin{verbatim}
+canThrow2 :: Exp -> Bool
+canThrow2 = RB.get . go M.empty where
+    go :: M.Map Var RBool -> Exp -> RBool
+    go env (Var v)          = env M.! v
+    go env Throw            = RB.true
+    go env (Catch e)        = RB.false
+    go env (Lam v e)        = go (M.insert v RB.false env) e
+    go env (App e1 e2)      = go env e1 RB.|| go env e2
+    go env (Let v e1 e2)    = go env' e2 where
+        env_bind = M.singleton v (go env e1)
+        env' = M.union env_bind env
+    go env (LetRec binds e) = go env' e where
+        env_bind = M.fromList [ (v, RB.id (go env' e)) | (v,e) <- binds ]
+        env' = M.union env_bind env
+\end{verbatim}
+All we did was change the type of the local function \verb|go| to use \verb|RBool| instead of \verb|Bool|, used the corresponding operations (\verb|RB.true|, \verb|RB.false| and \verb+RB.||+), projected out to normal booleans at the end (using \verb|RB.get|). A slight blemish is that we also inserted a call to \verb|RB.id| so that we don't fall over an input \verb|LetRec [("x", Var "x")]|, as explained in \cref{sec:blackhole}.
+
+To keep it simple for this paper the analysis does not update the AST (e.g. remove redundant calls to \verb|Catch|, or update analysis information stored in the varibles as GHC would do), as the necessary plumbing obscures the code a bit. But it would work: we can use \verb|RB.get|  with in the function to get the analysis result for any subexpression and return a changed AST accordingly, e.g.
+\begin{verbatim}
+    go :: M.Map Var RBool -> Exp -> (RBool, Exp)
+    ...
+    go env (Catch e)        = (RB.false, new_e) where
+      (can_throw, e') = go env e
+      new_e | RB.get can_throw = Catch e'
+            | otherwise        = e'
+\end{verbatim}
+We'd have to be careful that the \verb|RBool| returned by \verb|go| does not depend on any decision made based on a boolean that was obtained with \verb|RB.get|, but typically that is possible for a combined analysis/transformation pass as this.
+
+What if we did not have \verb|RBool| at our disposal, and we would implement this analysis, what would we do? Here are some common options
+\begin{itemize}
+\item We can explicitly perform a fixpoint analysis in the \verb|LetRec| case: Initialize the \verb|env_bind| with all variables mapped to \verb|False|, descend, check if now any analysis result has changed, and if so, re-analyze all of them, until we found a solution.
+Maybe we can be more clever and only analyse some of them.
+Maybe some of that logic can be extracted into a suitable fixpoint operator.
+
+In any case, we'd somewhat obscure the declarative intent of the code with lower-level bookkeeping.
+\item If we do that naively, we might run into the problem that with nested recursive lets, where such nested fixpoint iteration can cause exponential complexity.
+
+In the case where the analysis result is persisted as annotations in the syntax tree anyways, we can avoid the issue by starting the fixpoint iteration not from bottom, but from the last result. GHC does this, as explained in
+\citet[Section 6.6]{modular}, but again at the cost of more plumbing obscuring the code's intent.
+
+\item Another way to approach the problem is to gather the full data flow problem from the whole AST, solve it globally (thus avoiding the problem mentioned in the previous bullet), and then distributing the analysis results again everywhere. This is reminiscent of how a constrained-based type inference alogrithm works.
+
+It is a satisfying thought that this approach frees the solving algorithm from having to follow the nesting structure of the program. There are petty practical issues with this approach, such as having to uniquely name the cells, and having to do two passes. At this point, one is likely going to hide this book keeping in a suitable monad, which recovers some of the declaratively. If the code could otherwise be written as pure functions, that is still quite a price to pay.
+\end{itemize}
+Where our library is applicable, it allows us to get the concise elegance of the pure code that does not pay any particular attention to recursion, while under the hood the solver has a global view of the problem.
+
 
 \section{Under the hood}\label{sec:impl}
 
