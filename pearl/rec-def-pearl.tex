@@ -34,9 +34,9 @@
 \begin{abstract}
 Haskell’s lazyiness allows the programmer to express some problems very declaratively and naturally, by recursive equations. Unfortunately, if the input is “too recursive”, these very elegant idioms can fall into a black hole, and the programmer has to resort to more pedestrian approaches.
 
-We show that it does not have to be that way: We build variants of common pure data structures that internally do rather nasty things, but provide a pure API and where the recursive idioms -- magically -- work.
+It does not have to be that way: We built variants of common pure data structures (Booleans, sets) that are recursively definable. Internally, they do rather nasty things, but the user sees a beautiful and pure API, and with these their recursive idioms -- magically -- work.
 
-In the end, this raises interesting questions about the precise nature of purity.
+%In the end, this raises interesting questions about the precise nature of purity.
 \end{abstract}
 
 \begin{CCSXML}
@@ -653,7 +653,7 @@ They used the Iris framework, in that context one even finds a mechanized proof 
 It seems that important building blocks are already there, and we hope that this paper can maybe spurn motivate more work in that direction.
 
 
-\section{Related work}
+\section{Related work}\label{sec:related}
 
 The present work draws inspiration from and connects to various directions.
 
