@@ -82,10 +82,9 @@ type Graph = M.Map Int [Int]
 Then the reflexive transitive closure can be very elegantly expressed by knot-tying a map from vertices to the set of reachable vertices:
 \begin{verbatim}
 transitive1 :: Graph -> Graph
-transitive1 g = M.map S.toList sets
-  where
-    sets :: M.Map Int (S.Set Int)
-    sets = M.mapWithKey (\v vs -> S.insert v (S.unions [ sets M.! v' | v' <- vs ])) g
+transitive1 g = M.map S.toList sets where
+  sets :: M.Map Int (S.Set Int)
+  sets = M.mapWithKey (\v vs -> S.insert v (S.unions [ sets M.! v' | v' <- vs ])) g
 \end{verbatim}
 This code is quite close to the prosaic specification “the reachable nodes from a node \verb|v| are \verb|v| itself, plus all the nodes reachable from its successors”; hence we can call this code declarative.
 
@@ -119,38 +118,44 @@ insert :: Ord a => a -> RSet a -> RSet a
 unions :: Ord a => [RSet a] -> RSet a
 get    ::          RSet a -> Set a
 \end{verbatim}
-Besides the two operations used by \verb|transitive1|, with type signatures mirroring those of \verb|Data.Set| exactly, there is the function \verb|get| to convert our \verb|RSet| to a normal \verb|Set|.
+In addition to the two operations used by \verb|transitive1|, with type signatures mirroring those of \verb|Data.Set| exactly, we find the function \verb|get| to convert our \verb|RSet| to a normal \verb|Set|.
 
 We can use this data structure without changing the structure of our code; we just swap out the operations (imported qualifiedly as \verb|RS|) and convert back to conventional sets in the end:
 \begin{verbatim}
 transitive2 :: Graph -> Graph
-transitive2 g = M.map (S.toList . RS.get) sets
-  where
-    sets :: M.Map Int (RS.RSet Int)
-    sets = M.mapWithKey (\v vs -> RS.insert v (RS.unions [ sets M.! v' | v' <- vs ])) g
+transitive2 g = M.map (S.toList . RS.get) sets where
+  sets :: M.Map Int (RS.RSet Int)
+  sets = M.mapWithKey (\v vs -> RS.insert v (RS.unions [ sets M.! v' | v' <- vs ])) g
 \end{verbatim}
 
 And indeed, now we \emph{can} handle recursive graphs, and get the correct result:
 \begin{verbatim}
-ghci> transitive2 $ M.fromList [(1,[2,3]),(2,[1,3]),(3,[])]
+ghci> transitive2 (M.fromList [(1,[2,3]),(2,[1,3]),(3,[])])
 fromList [(1,[1,2,3]),(2,[1,2,3]),(3,[3])]
 \end{verbatim}
 
 \subsection{Contributions}
 
-From the user’s point of view, that’s almost all we have to say: There is a library of types (sets, Booleans, maps) you can use like the conventional one, and suddenly your favorite knot-tying tricks work even better. In \cref{sec:exploration} we'll explore how this library from the user's point of view, before taking a look at how it works under the hood (\cref{sec:impl}), discussing whether calling this \emph{pure} is actually warranted (\cref{sec:pure}) and finally taking a brief glance at related approaches (\cref{sec:related}).
+From the user’s point of view, that’s almost all there is  to say: There is a library of types (sets, Booleans, maps) you can use like the conventional types, and suddenly your favorite knot-tying tricks work even better. In \cref{sec:exploration} we'll explore how this library from the user's point of view, followed by a larger program analysis case-study (\cref{sec:casestudy}) , before taking a look at how it works under the hood (\cref{sec:impl}), discussing whether calling this \emph{pure} is actually warranted (\cref{sec:pure}) and finally taking a brief glance at related approaches (\cref{sec:related}).
 
-The main contributions of this paper are
+\medskip
+
+The main contributions of this paper are:
+
 \begin{itemize}
-\item providing a Haskell library with variants of common data types (sets, Booleans and maps, and it can be extended) with a \emph{safe} and \emph{pure} interface mirroring the conventional API, but where recursive expressions are productive,
-\item posing the question of whether this should really be considered \emph{pure}, and by noticing that this question is hard to answer (let alone to prove), pose a challenge to the community, and
-\item observing, as a hopefully enlightening insight, that one of the main features of \emph{laziness} is that it allows more recursive equations to be solved, and thus more problems be expressed declaratively, and thus a the lazier the language, the more declarative.
+\item We show that by making more data types recursively definable, more problems can be solved elegantly and declaratively. They are \emph{safe} and \emph{pure} and are a natural fit for a language like Haskell.
+
+\item We describe the implementation with such variants of common data types (sets and Booleans, and extensible to more types), as a regular library using GHC's \verb|unsafePerformIO| primitive under the hood.\footnote{The library can be found as \texttt{rec-def} on Hackage; an anonymized copy is included in this submission.}
+
+\item By wondering what it even means for a language to be considered \emph{pure} (let alone how to formally prove it), posing a challenge to the community.
+
+%\item observing, as a hopefully enlightening insight, that one of the main features of \emph{laziness} is that it allows more recursive equations to be solved, and thus more problems be expressed declaratively, and thus a the lazier the language, the more declarative.
 \end{itemize}
 
 \section{Exploration}\label{sec:exploration}
 
-In the introduction we have used a data type \verb|RSet| with an API that resemble those of the \verb|Set| data structure in Haskell's \verb|Data.Set| library. Let us explore this data structure more from the user's point of view, to get a better understanding of how it is different from the vanilla \verb|Set|, and to whet the appetite for the look at its implementation in the subsequent section.
-\Cref{fig:api} gives a more comprehensive overview of the API.
+In the introduction we have used a data type \verb|RSet| with an API that resembles that of the \verb|Set| data structure in Haskell's \verb|Data.Set| library. Let us explore this data structure some more from the user's point of view, to get a better understanding of how it is different from the vanilla \verb|Set|, and to whet the appetite for the look at its implementation in a subsequent section.
+\Cref{fig:api} gives a comprehensive overview of the API.
 
 \subsection{Just a isomorphic copy?}
 
@@ -203,16 +208,16 @@ ghci> quickCheck $ \s1 s2 -> RS.get (RS.union s1 s2) === S.union (RS.get s1) (RS
 +++ OK, passed 100 tests.
 \end{verbatim}
 
-The second equation generalizes to all operations in the API, giving it a specification in terms of the underlying vanilla data type. But there must be a difference, else we would not be writing this paper.
+The second equation generalizes to all operations in the API, giving them a straight-forward specification in terms of the corresponding operation on the underlying vanilla data type. But there must be a difference, else we would not be writing this paper.
 
 \subsection{Recursion!}
 
-The difference is that with \verb|RSet|, \emph{recursively defined expressions work!}. For example, using vanilla \verb|Set| from \verb|Data.Set| (imported qualified as \verb|S|), evaluating recursive expressions tends to hang:
+The difference is that with \verb|RSet|, \emph{recursively defined expressions work!} For example, using vanilla \verb|Set| from \verb|Data.Set| (imported qualified as \verb|S|), evaluating recursive expressions tends to hang:
 \begin{verbatim}
 ghci> let s = S.insert 42 s in s
 fromList ^CInterrupted.
 \end{verbatim}
-While it simply works using  \verb|RSet|:
+With \verb|RSet|, it simply works:
 \begin{verbatim}
 ghci> let s = RS.insert 42 s in RS.get s
 fromList [42]
@@ -231,11 +236,11 @@ ghci| in (RS.get s1, RS.get s2, RS.get s3)
 (fromList [23,42],fromList [23],fromList [23])
 \end{verbatim}
 
-In these examples, we built the graph of recursively defined \verb|RSet| values explicitly, using \verb|let|, to have a good look at them. In practice one would more likely construct that graph using lazy data structures and knot-tying, maybe dynamically based on some input, as done in the example.
+In these examples, we build the graph of recursively defined \verb|RSet| values explicitly, using \verb|let|. In practice one would more likely construct that graph using lazy data structures and knot-tying, maybe dynamically based on some input, as done in the introduction.
 
 \subsection{Fixpoints}
 
-It a positive surprise that these expressions are productive, i.e.\ that we even obtain a result. But it is the right result? If we look at the last expression above we can see that the vanilla sets we get for each of the variable make their defining equation an equality:
+It may come as a pleasant surprise that these expressions are productive, i.e.\ that we even obtain a result. But it is the right result? If we look at the last example above we can see that the vanilla sets we get for each of the three variables makes the three defining equations true:
 \begin{verbatim}
 ghci> let s1 = S.fromList [23,42]; s2 = S.fromList [23]; s3 = S.fromList [23]
 ghci> s1 == S.insert 42 s2
@@ -246,13 +251,13 @@ ghci> s3 == S.delete 42 s1
 True
 \end{verbatim}
 
-That’s good, because that’s how we want equations in a functional programming language to behave.
+That is good, because that is how we want equations in a functional programming language to behave.
 
-At this point you might interject that these are not the only possible solutions to this equation. Considering the smaller example above, of \verb|let s = RS.insert 42 s|, we find that indeed \verb|S.fromList [42]| solves the equation \verb|s == S.insert 42 s|, but so does \verb|S.fromList [42,43]|. Still, we would not consider that a “good” solution, and would be surprised if we'd get that.
+At this point you might interject that these are not the only possible solutions to this system of equations. Returning to the smaller example of \verb|let s = RS.insert 42 s|, we find that our result \verb|S.fromList [42]| indeed solves the equation \verb|s == S.insert 42 s|, but so does \verb|S.fromList [42,43]|. Still, we would not consider that a “good” solution, and would be surprised if we'd get that.
+%
+That is because we expect the result to be \textbf{least fixpoint}; the solution that is, among all possible solutions, the smallest with regard to a particular partial order.
 
-That is because the result we expect is the \textbf{least fixpoint}, the solution that is is, among all possible solutions, the smallest with regard to a particular partial order.
-
-In the context of sets that order is naturally that of subset inclusion, a possibly recursive expression of \verb|RSet| values will evaluate to the smallest set solving the definitional equations.
+In the context of sets the natural order is subset inclusion. Therefore, a possibly recursive expression of \verb|RSet| values will evaluate to the smallest sets solving the definitional equations.
 
 It will always do so, provided that only finitely many \verb|RSet| values are involved and that \verb|RS.get| is not used in their construction. Using \verb|RS.get| drops us in the world of vanilla set, and the magic disappears:
 \begin{verbatim}
@@ -263,14 +268,14 @@ In this sense, \verb|RS.mk . RS.get| is not the identity function.
 
 \subsection{More than sets}
 
-The library of recursively definable values does not only provide sets, but also other data types, in particular Booleans, as seen in \cref{fig:api}. Again, we have a copy of the usual operations (literals, conjunction and disjunction), and as before, we expect an (possibly recursive) expression of \verb|RBool| values to evaluate to the Boolean that solves these equation.
+Our library of recursively definable values does not only provide sets, but also other data types, in particular Booleans, as seen in \cref{fig:api}. Again, we have a copy of the usual operations (literals, conjunction and disjunction), and as before, we expect a (possibly recursive) expression of \verb|RBool| values to evaluate to the Boolean that solves these equation.
 
-What if both \verb|True| and \verb|Both| solve an equation, like in the following case?
+What happens if both \verb|True| and \verb|Both| would solve an equation, like in the following case?
 \begin{verbatim}
 ghci> let x = x RB.|| x in RB.get x
 False
 \end{verbatim}
-We can see that \verb|RBool| considers \verb|False| as the least element, and for some use-cases that is the right choice. But for other use-cases, one would prefer \verb|True| over \verb|False|. Therefore, the library proves a second module and datatype \verb|RDualBool|, again with the full set of operations on Booleans, but this time returning \verb|True| if possible:
+We can see that \verb|RBool| considers \verb|False| as the least element, and for some use-cases that is the right choice. But for other use-cases, one would prefer \verb|True| over \verb|False|. Therefore, the library proves a separate module and data type \verb|RDualBool|, again with the full set of operations on Booleans, but this time returning \verb|True| if possible:
 \begin{verbatim}
 ghci> let x = x RDB.|| x in RDB.get x
 True
@@ -278,44 +283,43 @@ True
 
 \subsection{Monotonicity}\label{sec:monotonicity}
 
-These data types -- \verb|RSet|, \verb|RBool|, \verb|RDualBool| are not silos, and you will find among the functions in \cref{fig:api} some that connect these types -- negation on Booleans, member checks on sets, and the emptiness check on sets.
+These data types -- \verb|RSet|, \verb|RBool|, \verb|RDualBool| are not silos, and you will find among the functions in \cref{fig:api} some that connect these types -- negation on Booleans, member checks on sets, the emptiness check on sets, and the function \verb|when|, which guards the values of a set on a boolean.
 This means that even recursive expressions involving multiple of these types yield will produce a result.
 
-So why does \verb|RS.member| return a \verb|RBool|, but \verb|null| returns a \verb|RDualBool|? And why is there no \verb|not :: RBool -> RBool|? It is because all functions involved here must be \emph{monotonic}: smaller arguments must lead to smaller results. And because the empty set is smaller than a singleton set, \verb|RS.member 42| must return a \verb|RBool| where we consider \verb|False| to be smaller than \verb|True|, but \verb|null| must go to \verb|RDualBool| where \verb|True| is considered smaller than \verb|False|.
+So why does \verb|RS.member| return a \verb|RBool|, but \verb|null| returns a \verb|RDualBool|? And why is there no function \verb|not :: RBool -> RBool|? It is because all functions involved here must be \emph{monotonic}: smaller arguments must lead to smaller results. And because the empty set is smaller than non-empty sets, \verb|RS.member| must return a \verb|RBool| (where \verb|False| is smaller than \verb|True|), but \verb|null| must go to \verb|RDualBool| (where \verb|True| is smaller than \verb|False|).
 
-If we did not pay attention to this while defining the API, and added non-monotonic functions (like \verb|not :: RBool -> RBool|), we would be able to write equations that do not have a solution, such as
-\begin{verbatim}
-let x = not x
-\end{verbatim}
+If we did not pay attention to this while defining the API, and added non-monotonic functions (like \verb|not :: RBool -> RBool|), the user would be  able to write equations that do not have a solution, such as
+\verb|let x = not x|,
+and we would like to statically rule that out.
 
-The underlying bit of theory is the theorem that a monotone function $f : A \to A$ on a partially ordered set $A$ with least element $\bot \in A$ and height has a unique least fixed point. This is well-known (e.g.\ \citet{lazyleast}), and if the sentence means something to you, you probably already saw it coming. But if it doesn't, it does not matter for reading this paper.
+The underlying bit of theory is the theorem that a monotone function $f : A \to A$ on a partially ordered set $A$ with least element $\bot \in A$ and finite height has a unique least fixed point. This is well-known (e.g.\ \citet{lazyleast}), and if the sentence means something to you, you probably already saw it coming. And if it doesn't, it does not matter for reading this paper.
 
-This explains why some functions from the underlying vanilla data type (such as \verb|Data.Set|'s \verb|difference|) are not available, as they are not monotonic.
+This also explains why some functions from the underlying vanilla data type (such as \verb|Data.Set|'s \verb|difference|) are not available, as they are not monotonic.
 
 \subsection{Termination}
 
-Another function from \verb|Data.Set| that we do not have in \verb|Data.Recursive.Set| is the function \verb|map :: Ord b => (a -> b) -> Set a -> Set b|. This may be a bit surprising, as this function is perfectly monotonic, as it maps smaller sets to smaller sets. But it may cause other problems. Imagine we had it, and wrote
+Another function from \verb|Data.Set| that we do not have in \verb|Data.Recursive.Set| is the function \verb|map :: Ord b => (a -> b) -> Set a -> Set b|. This may be a bit surprising, as this function is perfectly monotonic with regard to the subset relation. But it can cause nother problems: Imagine we had it, and wrote
 \begin{verbatim}
 let s = RS.insert 0 (RS.map (+1) s) in RS.get s
 \end{verbatim}
-Does this equation have a solution? Clearly the set \verb|s| needs to contain \verb|0|. But then it also needs to contain \verb|1|. And \verb|2|. And so on. So the solution would have to be the set of all natural numbers, but that is not something that \verb|Data.Set|, being a data structure of \emph{finite} sets, can represent.
+Does this equation have a solution? Clearly the set \verb|s| needs to contain \verb|0|. But then it also needs to contain \verb|1|. And \verb|2|. And so on. So the solution would have to be the set of \emph{all} natural numbers, but that is not something that \verb|Data.Set|, being a data structure of \emph{finite} sets, can represent.
 
-So we cannot allow this function for \verb|RSet| if we want to guarantee a result for every finite, possibly recursive expression.
+So we cannot allow this function for \verb|RSet| if we want to guarantee a result for every finite recursive expression.
 
 For the theoretically inclined, this plays into the “$A$ has finite height” requirement in the theorem above. You might be irked that the type \verb|Set a|, ordered by subset inclusion, does not actually have finite height (if \verb|a| is not finite). But in the absence of functions like \verb|set|, for every \emph{finite} expression involving our \verb|RSet| we find that there are only finite many possible set members, and thus the relevant “subtype” has finite height, and all is well again.
 
-It would not be unreasonable, however, to add \verb|map| to the \verb|RSet| API, as it may be quite useful for some applications, and maybe in these applications the equation have a solution just fine. If we'd do that, we could no longer \emph{guarantee} termination for all possible expressions (as shown by the example above). But it be the case that if the expression yields a result, it will be the least fixed point of the defining equation. One can argue that this would be fine, as this is what Haskell programmers are used from their Haskell code anyways.
+It would not be unreasonable, however, to add \verb|map| to the \verb|RSet| API, as it may be quite useful for some applications, and maybe in these applications the equation have a finite solution just fine. If we'd do that, we could no longer \emph{guarantee} termination for all possible expressions (as shown by the example above), but if expression yields a result, it will be the least fixed point of the defining equation. One can argue that this would be fine for a Haskell library, as Haskell programmers are used to programming around non-termnation anyways.
 
 \subsection{The black hole}\label{sec:blackhole}
 
 We said that “all finite, possibly recursive expressions yield a result”. Unfortunately, that is not completely true: If a value of type \verb|RSet| is defined to be simply itself, with none of the \verb|RSet| operations involved, it will not work:
 \begin{verbatim}
-ghci> let x = x in RS.get x
+ghci> let s = s in RS.get s
 fromList ^CInterrupted.
 \end{verbatim}
-And it’s not for lack of a solution: Clearly the empty set is the least solution to the equation \verb|x == x|.
+And it’s not for lack of a solution: Clearly the empty set is the least solution to the equation \verb|s == s|.
 
-Because our library is but a library, despite the apparent magic inside (which we will uncover in the next section), with a definition like \verb|let x = x| it has no chance to insert its magic.
+Because our library is but a library, despite the apparent magic inside (which we will uncover in \cref{sec:impl}), with a definition like \verb|let s = s|, it has no chance to insert its magic.
 
 The problem goes away as soon as any function from the API is involved in the definition, even if it is semantically the identity:
 \begin{verbatim}
@@ -323,15 +327,19 @@ ghci> let x = RS.unions [x] in RS.get x
 fromList []
 \end{verbatim}
 
-This is a little stumbling block when using this library. And while programmers are unlikely to write \verb|let x = x| directly, the effect can occur when tying the knot via a lazy data structure. In that case, the programmer is advised to insert a semantic identity function in the right position; the \verb|RS.id :: Set a -> Set a| function can be used for that purpose.
-A programming language that integrates these features first-class could feasibly take care of this automatically.
+This is a little stumbling block when using this library. And while programmers are unlikely to write \verb|let x = x| directly, the effect can occur when tying the knot via a lazy data structure. In that case, the programmer is advised to insert a semantic identity function in the right position; the function \verb|RS.id :: Set a -> Set a| can be used for that purpose.
+A programming language that integrates these features first-class can take care of this automatically.
 
-\subsection{Case study: a program analysis}
+\section{Case study: a program analysis}\label{sec:casestudy}
 
 Before we leave the user's point of view and look under the hood of the library, let us conclude the section with a slight larger and more realistic use-case. We hope that this example shows that using recursively definable values can make the code noticeably more declarative and elegant.
 
-The example is a small program analysis of a functional language with lazy let-bindings, (mutual) recursion and exceptions that determines whether evaluating an expression may throw an (uncaught) expression. To set the stage, \cref{fig:analast} contains a Haskell Datatype for a typical abstract syntax. The \verb|LetRec| constructor takes a list of bound variables with their definition's  right-hand side, and a body; all variables are in scope in all the right-hand sides and the body.
-(The resemblance to GHC's intermediate language Core \citep{secrets} is certainly not accidental.)
+\subsection{First without recursion}
+
+The example is a small program analysis of a functional language with lazy let-bindings, (mutual) recursion and exceptions that determines whether evaluating an expression may throw an (uncaught) expression.
+
+To set the stage, \cref{fig:analast} contains a Haskell Datatype for a typical abstract syntax. The \verb|LetRec| constructor takes a list of bound variables along with their definition's  right-hand side, and a body; all bound variables are in scope in all the right-hand sides and the body.
+(The resemblance to GHC's intermediate language Core \citep{secrets} is certainly not a coincidence.)
 
 \begin{figure}
 \begin{verbatim}
@@ -343,7 +351,7 @@ data Exp = Var Var | Lam Var Exp | App Exp Exp | Throw | Catch Exp
 \label{fig:analast}
 \end{figure}
 
-Let us ignore the \verb|LetRec| at first, and write that analysis as a simple traversal of the AST:
+Let us ignore \verb|LetRec| at first, and write that analysis as a simple traversal of the AST:
 \begin{verbatim}
 canThrow :: Exp -> Bool
 canThrow e = go M.empty e where
@@ -353,15 +361,16 @@ canThrow e = go M.empty e where
     go env (Catch e)        = False
     go env (Lam v e)        = go (M.insert v False env) e
     go env (App e1 e2)      = go env e1 || go env e2
-    go env (Let v e1 e2)    = go env' e2
-      where
+    go env (Let v e1 e2)    = go env' e2 where
         env_bind = M.singleton v (go env e1)
         env' = M.union env_bind env
 \end{verbatim}
 
-Because our let-bindings are lazy, to determine whether evaluating a variable can throw we carry an environment of type \verb|M.Map Var Bool| around where we remember whether the corresponding right-hand could throw. \verb|Throw| and \verb|Catch| certainly can resp.\ cannot throw. The analysis isn't higher order, so for lambdas we assume they can throw their body can throw, and for applications when either subexpression can throw. And finally for \verb|Let|, we extend the environment with the analysis result of the bound variable and descend.
+To determine whether evaluating a varible can throw, because of laziness, we have to carry around and
+environment of type \verb|M.Map Var Bool| where we remember whether the corresponding right-hand could throw. \verb|Throw| and \verb|Catch| certainly can resp.\ cannot throw. The analysis isn't higher order, so for lambdas we assume they can throw their body can throw, and for applications when either subexpression can throw. And finally for \verb|Let|, we extend the environment with the analysis result of the bound variable and descend.
 
-So far, so standard. But what about \verb|LetRec|? Here, the analysis result of each right-hand side depends on the analysis results of all right-hand sides. We can just try to do what we did in the \verb|Let| case, and write:
+\subsection{Avoiding the black hole}
+So far, so standard. But what about \verb|LetRec|? Here, the analysis result of each right-hand side depends on the analysis results of all right-hand sides. We can try to simply do what we did in the \verb|Let| case:
 \begin{verbatim}
     go env (LetRec binds e) = go env' e where
         env_bind = M.fromList [ (v, go env' e) | (v,e) <- binds ]
@@ -369,12 +378,12 @@ So far, so standard. But what about \verb|LetRec|? Here, the analysis result of 
 \end{verbatim}
 Note that, crucially, we use the extended environment \verb|env'| not only for the body, but also for the right-hand sides.
 
-Alas, this does not work: As soon as we try to analyze an expression with recursion, we will fall into a black hole. And the reason is that \verb|Bool| is not recursively definable, because the operations (here only disjunction, \verb+(||)+) is not lazy enough.
+Alas, this does not work: As soon as we try to analyze an expression that uses recursion, we will fall into a black hole. The crux is that \verb|Bool| is not recursively definable, because the operations (here only disjunction, \verb+(||)+) is not lazy.
 
-But if we use \verb|RBool| instead of \verb|Bool|, the this code just works:
+But if we use \verb|RBool| instead of \verb|Bool|, it just works:
 \begin{verbatim}
-canThrow2 :: Exp -> Bool
-canThrow2 = RB.get . go M.empty where
+canThrow :: Exp -> Bool
+canThrow e = RB.get (go M.empty e) where
     go :: M.Map Var RBool -> Exp -> RBool
     go env (Var v)          = env M.! v
     go env Throw            = RB.true
@@ -388,9 +397,11 @@ canThrow2 = RB.get . go M.empty where
         env_bind = M.fromList [ (v, RB.id (go env' e)) | (v,e) <- binds ]
         env' = M.union env_bind env
 \end{verbatim}
-All we did was change the type of the local function \verb|go| to use \verb|RBool| instead of \verb|Bool|, used the corresponding operations (\verb|RB.true|, \verb|RB.false| and \verb+RB.||+), projected out to normal Booleans at the end (using \verb|RB.get|). A slight blemish is that we also inserted a call to \verb|RB.id| so that we don't fall over an input \verb|LetRec [("x", Var "x")]|, as explained in \cref{sec:blackhole}.
+All we did was to change the type of the local function \verb|go| to use \verb|RBool| instead of \verb|Bool|, used the corresponding operations (\verb|RB.true|, \verb|RB.false| and \verb+RB.||+) and  projected out to normal Booleans at the end (using \verb|RB.get|). A slight blemish is that we also inserted a call to \verb|RB.id| so that we don't fall over the input \verb|LetRec [("x", Var "x")]|, as explained in \cref{sec:blackhole}.
 
-To keep it simple for this paper the analysis does not update the AST (e.g. remove redundant calls to \verb|Catch|, or update analysis information stored in the variables as GHC would do), as the necessary plumbing obscures the code a bit. But it would work: we can use \verb|RB.get|  with in the function to get the analysis result for any subexpression and return a changed AST accordingly, e.g.
+\subsection{Results everywhere}
+
+To keep it simple for this paper the analysis does not update the AST (e.g. remove redundant calls to \verb|Catch|, or update analysis information stored in the variables as GHC would do), as the necessary plumbing would obscure our point. But it would work: we can use \verb|RB.get|  with in the function to get the analysis result for any subexpression and return a changed AST accordingly, e.g.
 \begin{verbatim}
     go :: M.Map Var RBool -> Exp -> (RBool, Exp)
     ...
@@ -399,45 +410,53 @@ To keep it simple for this paper the analysis does not update the AST (e.g. remo
       new_e | RB.get can_throw = Catch e'
             | otherwise        = e'
 \end{verbatim}
-We'd have to be careful that the \verb|RBool| returned by \verb|go| does not depend on any decision made based on a boolean that was obtained with \verb|RB.get|, but typically that is possible for a combined analysis/transformation pass as this.
+We'd have to be careful that the \verb|RBool| returned by \verb|go| does not depend on any decision made based on a boolean that was obtained with \verb|RB.get|. For such a fused analysis/transformation pass this is typically possible.
+%The ability to query each “node” as we go sets this approach apart from other idioms with a
 
-What if we did not have \verb|RBool| at our disposal, and we would implement this analysis, what would we do? Here are some common options
+\subsection{Alternatives}
+What would we do if we did not have \verb|RBool| at our disposal? Here are some common options
 \begin{itemize}
-\item We can explicitly perform a fixpoint analysis in the \verb|LetRec| case: Initialize the \verb|env_bind| with all variables mapped to \verb|False|, descend, check if now any analysis result has changed, and if so, re-analyze all of them, until we found a solution.
-Maybe we can be more clever and only analyze some of them.
+\item We can perform an explicit fixpoint analysis in the \verb|LetRec| case: Initialize the \verb|env_bind| with all variables mapped to \verb|False|, descend, check if now any analysis result has changed, and if so, re-analyze all of them, until we found a solution.
+
+Maybe we can be more clever and only re-analyze some of them.
+
 Maybe some of that logic can be extracted into a suitable fixpoint operator.
 
-In any case, we'd somewhat obscure the declarative intent of the code with lower-level bookkeeping.
-\item If we do that naively, we might run into the problem that with nested recursive lets, where such nested fixpoint iteration can cause exponential complexity.
+In any case, we would obscure the declarative intent of the code with lower-level bookkeeping.
 
-In the case where the analysis result is persisted as annotations in the syntax tree anyways, we can avoid the issue by starting the fixpoint iteration not from bottom, but from the last result. GHC does this, as explained in
-\citet[Section 6.6]{modular}, but again at the cost of more plumbing obscuring the code's intent.
+\item If we do that naively, we can run into the problem that in the presence of nested recursive lets, the nested fixpoint iteration can cause exponential complexity.
 
-\item Another way to approach the problem is to gather the full data flow problem from the whole AST, solve it globally (thus avoiding the problem mentioned in the previous bullet), and then distributing the analysis results again everywhere. This is reminiscent of how a constrained-based type inference algorithm works.
+In the case where the analysis result is persisted as annotations in the syntax tree anyways, we can address this issue by starting the fixpoint iteration not from bottom, but from the result of the previous outer iteration.
 
-It is a satisfying thought that this approach frees the solving algorithm from having to follow the nesting structure of the program. There are petty practical issues with this approach, such as having to uniquely name the cells, and having to do two passes. At this point, one is likely going to hide this book keeping in a suitable monad, which recovers some of the declaratively. If the code could otherwise be written as pure functions, that is still quite a price to pay.
+GHC does this, as explained in \citet[Section 6.6]{modular}, but again at the cost of more plumbing obscuring the code's intent.
+
+\item Another way to approach the problem is to gather the full data flow problem from the whole AST, solve it globally (thus also avoiding the problem mentioned in the previous bullet), and then distributing the analysis again to where we need it. This is reminiscent of how a constrained-based type inference algorithm works.
+
+It is a satisfying thought that this approach frees the solving algorithm from having to follow the syntactic nesting structure of the program, and that the repeated passes of the fixpoint iteratation do not have to re-analyze the AST over and over, and instead only sees the pure data-flow equations. 
+
+There are, however, petty practical issues with this approach (representing the equations as data, uniquely nameing the cells, the separate passes for collecting the equations and using the results). At this point, one is likely going to hide this bookkeeping in a suitable monad, which can recover some of the lost elegance, but if the code could otherwise be written as pure functions, that is still quite a price to pay.
 \end{itemize}
-Where our library is applicable, it allows us to get the concise elegance of the pure code that does not pay any particular attention to recursion, while under the hood the solver has a global view of the problem.
+When our library is applicable, it allows us to retain the concise elegance of the pure code that does not bother with the “how” of solving equations, while under the hood the solver has a comprehensive global view of the problem.
 
 
 \section{Under the hood}\label{sec:impl}
 
-We hope that by now you are eager to learn how the \verb|RSet| library is implemented. It is a Haskell library, without dedicated compiler support or using compiler plugins. Maybe this sounds impossible, and we agree: The API and specification presented in the previous section \emph{cannot} be implemented in normal, safe, pure Haskell code\footnote{At least we believe it is not possible, and maybe \cref{sec:sat} suffices as proof.}
+We hope that by now you are eager to learn how the \verb|RSet| library is implemented. It is a regular Haskell library, without dedicated compiler support nor using compiler plugins. Maybe this sounds impossible, and we agree: The API and specification presented in the previous section \emph{cannot} be implemented in normal, safe, pure Haskell code.\footnote{At least we believe it is not possible, as we explain in \cref{sec:sat}.}
 
-But it can be implemented using \emph{“unsafe”} features; in particular the infamous function \verb|unsafePerformIO :: IO a -> a|, which allows arbitrary side-effects in pure code. But before you turn away in disgust allow us to quote \citet{unsafePerformIO}, the publication that introduced this primitive:
+But it can be implemented using \emph{“unsafe”} features; in particular GHC's infamous function \verb|unsafePerformIO :: IO a -> a|, which allows arbitrary side-effects in pure code. Before you turn away in disgust please allow us to quote \citet{unsafePerformIO} from their publication introducing this primitive:
 \begin{quote}
 However “unsafe” is not the same as “wrong”. It simply means that the programmer, not the compiler, must undertake the proof obligation that the program's semantics is unaffected by the moment at which all these side effects take place. [\ldots]
-So, we regard the primitives of this paper as \emph{the raw material from which experienced systems programmers can beautiful abstractions}.
+So, we regard the primitives of this paper as \emph{the raw material from which experienced systems programmers can construct beautiful abstractions}.
 \end{quote}
-This is our goal; although whether the abstraction presented in \cref{sec:exploration} is beautiful is in the eye of the beholder.
+This is our goal; whether the abstraction presented in \cref{sec:exploration} is beautiful is in the eye of the beholder.
 
 \subsection{A naive implementation}
 
-The core idea behind the implementation can be explained in two simple steps: First, with an imperative API to declare values, register their relationships and read their values, and then wrapping that in a pure and lazy-enough way. We’ll begin with a naive implementation that initially ignores issues of reentrancy-safety, modularity, performance and space-leaks.
+The core idea behind the implementation can be explained in two simple steps: First, we use an imperative API to declare values, register their relationships and read their values, and then we wrap that in a pure and sufficiently lazy wrapping. We begin by outlining a naive implementation that initially ignores issues of reentrancy-safety, modularity, performance and space-leaks.
 
 \subsection{An imperative core}\label{sec:impcore}
 
-A typical \emph{imperative} API to describe and then solve a set of recursive equations provides functions to (1) register variables, or \emph{cells}, (2) define their relationships and (3) finally read their values. To keep the example code small, we focus on just sets and insertion as the only operation, and could imagine an API like the following:
+A typical \emph{imperative} API to describe and let solve a set of recursive equations typically provides functions to (1) register the variables, or \emph{cells}, (2) define their relationships and (3) finally read their values. To keep the example code small, we focus on just sets and insertion as the only operation, and could imagine an API like the following:
 \begin{verbatim}
 data Cell a
 newCell      :: IO (Cell a)
@@ -455,14 +474,14 @@ ghci> getCell c2
 fromList [23,42]
 \end{verbatim}
 
-At this point, the actual implementation of this API is not that interesting: In a simple implementation a cell would consist of a current value (initialized to the empty set), and a list of cells depending on this current value, and then change due to \verb|cellIsInsert| are propagated through this network until no more changes need to be propagated.
+At this point, the actual implementation of this API is not that interesting. In a simple implementation a cell would consist of a current value (initialized to the empty set), and a list of cells depending on this value, and then the changes due to calls to \verb|cellIsInsert| are propagated through this network until no more changes need to be propagated. Of course, more sophisticated algorithms may lurk underneath this interface.
 
 \subsection{The pure wrapping}
 
 The more interesting question is how to get from the imperative \verb|Cell| code to the pure \verb|RSet| API, with \verb|insert :: a -> RSet a -> RSet a| and \verb|get :: RSet a -> Set a|?
 
 Clearly, \verb|insert| must somehow both create a new cell, and define its equation.
-Furthermore, it has to be lazy in its second argument, else a recursive equation will immediately loop, so it somehow has to defer using \verb|cellIsInsert| later. This leads to the code seen in \cref{fig:wrap}, which we can go through in detail:
+Furthermore, it has to be lazy in its second argument, else a recursive equation would immediately loop, so it somehow has to defer the call to \verb|cellIsInsert| a bit. This leads to the code seen in \cref{fig:wrap}, which we go through in detail:
 
 \begin{figure}
 \begin{verbatim}
@@ -492,73 +511,73 @@ get (RSet c todo _) = unsafePerformIO $ do
 A value of type \verb|RSet| consist of three fields
 \begin{itemize}
 \item The \verb|Cell a| backing the value we are defining.
-\item An \verb|IO ()| action, deferred until the the value is actually read with \verb|get|.
+\item An \verb|IO ()| action, deferred until the the value is actually needed (directly due to \verb|get|, or indirectly).
 \item A flag to remember if that deferred action has run already.
 \end{itemize}
 
-The function \verb|get| does not do much: It triggers the \verb|todo| action, and afterwards returns the current value of the cell. The interesting bits are in the \verb|insert| function: It creates a new cell to represent the result, and a “done”-flag. It then returns these together with a \verb|todo|-action, which is \emph{not yet run}. Note that the second argument, \verb|r2|, is \emph{not} looked at yet, so \verb|insert| is lazy.
+The function \verb|get| does not do much: It triggers the \verb|todo| action, and afterwards returns the current value of the cell. The interesting bits are in the \verb|insert| function: It creates a new cell to represent the result, and a “done”-flag. It returns these together with a \verb|todo|-action, which is \emph{not yet run}. Note that the second argument, \verb|r2|, is \emph{not} looked at yet, so \verb|insert| is lazy, as required.
 
-The \verb|todo| action itself uses the flag to ensure it is only run once. Only now the value \verb|r2| is analyzed, and the relationship between the cells is registered. It also runs the \verb|todo| action of the other cell. This way, a single \verb|get| will recursively trigger the \verb|todo| actions of all involved values (and the flags prevent running in circles).
+The \verb|todo| action itself uses the flag to ensure it is only run once. Only now the value \verb|r2| is analyzed, and the relationship between the cells is registered. It also runs the \verb|todo| action of the other cell. This way, a single call to \verb|get| will recursively trigger the \verb|todo| actions of all involved values -- and the flags prevent that process from running in cycles.
 
 \subsection{Less naively, please}
 
-This code generalizes easily to the other operations of the \verb|RSet| API, and describes the essence of the idea. It is, however, naive in a few ways that are worth discussing.
+This code describes the essence of our idea, and easily generalizes to the other operations of the \verb|RSet| API. It is, however, naive in a few ways that are worth discussing.
 
 \subsubsection{Reentrancy and thread safety.}\label{sec:thread}
 
-The \verb|done| flag is used to ensure that the \verb|todo| action is run exactly once, but \verb|get| is invoked concurrently, the code above is obviously racy. Even worse: Because this is run from \verb|unsafePerformIO|, even in a single-threaded environment we have to worry about reentrancy. In the library code, this is addressed using careful use of \verb|MVar| \cite{concurrent}, and hidden behind a small abstraction for “possibly recursive \verb|IO|-thunks” in the \verb|System.IO.RecThunk| API.
+The \verb|done| flag is used to ensure that the \verb|todo| action is run exactly once. But if \verb|get| is invoked concurrently, the code above is obviously racy. Even worse: Because this is run from \verb|unsafePerformIO|, even in a single-threaded environment we have to worry about reentrancy. In our library we address this with careful use of \verb|MVar| \cite{concurrent}, and hide this cleanly behind a small abstraction for “possibly recursive \verb|IO|-thunks” in the \verb|System.IO.RecThunk| API.
 
-While writing this code, the dejafu test library \citep{dejafu}, which can exhaustively explore all possible interleavings of concurrent code, has proven invaluable: more than once we thought we had finally achieved thread-safety, only to be told that we were still far off.
+The dejafu test library \citep{dejafu}, which can exhaustively explore all possible interleavings of concurrent code, has proven invaluable: more than once we thought we had finally achieved thread-safety, only to be told that we were still far off.
 
-\subsection{Modularity.}
+\subsubsection{Modularity.}
 
-The naive code above supports just one value type, (\verb|Set|), because the underlying imperative propagator library \verb|Cell| only supports that type. The full library abstracts over the underlying propagator. This way we can have recursively defined values of different types (\verb|RSet a|, \verb|RBool|), operations connecting them (e.g.\ \verb|members|) and allow mixed recursive equations.
+The naive code above supports just one value type, \verb|Set|, because the underlying imperative propagator library \verb|Cell| only supports that type. The full library abstracts over the underlying propagator. This way we can have recursively defined values of different types (\verb|RSet a|, \verb|RBool|), operations connecting them (e.g.\ \verb|member|) and allow solving heterogenously typed sets of equations.
 
-Supporting different propagator libraries also opens the way for important performance optimizations that are specific to various value types. The most generic propagator implementation assumes no structure on its values besides equality (\verb|Eq|), and just keeps propagating changes until the graph has stabilized. But if we can have different propagator implementations for different values, smarter propagator libraries ca be written:
+Supporting different propagator libraries also opens the way for important performance optimizations that are specific to various value types. The most generic propagator implementation assumes no structure on its values besides equality, and just keeps propagating changes until the graph has stabilized. But if we can have different propagator implementations for different types, smarter propagator libraries can be written.
 
-For example for Booleans, a cell changes its value at most once, from \verb|False| to \verb|True|. Once it is already \verb|True|, it will never change again, and one can omit propagating further information (see the \verb|Data.Propagator.P2| module).
+For example for Booleans, a cell changes its value at most once, from \verb|False| to \verb|True|. Once it is already \verb|True|, it will never change again, and one drop its connection to other cells (see the \verb|Data.Propagator.P2| module).
 
-Similarly, a propagator library for finite sets can propagate just deltas, instead of always recomputing the full sets from full inputs, to avoid repeating work. (This is not yet implemented in our library, but would be possible without affecting the public API.)
+Similarly, a propagator library for finite sets can propagate just deltas, instead of always recomputing the sets from its full inputs, to avoid repeating work. (This is not yet implemented in our library, but would be possible without affecting the public API.)
 
 \subsubsection{Space leaks}\label{sec:spaceleak}
 
 Another, maybe subtle, problem with our pure wrapping of an imperative propagator library is that it can easily lead to space leaks.
 
-Consider the \verb|insert| function. With \verb|rs2 = RS.insert x rs1| we create a new mutable cell for \verb|rs2|, and tells the mutable cell in \verb|rs1| to notify the other cell of any changes. This means that now somewhere in \verb|rs1| there is a reference to \verb|rs2| -- exactly the other way around from what you would expect from the code. So the resources allocated for \verb|rs2| cannot be freed while \verb|rs1| is alive.
+Consider the \verb|insert| function. With \verb|rs2 = RS.insert x rs1| we create a new mutable cell for \verb|rs2|, and tell the mutable cell in \verb|rs1| to notify the other cell of any changes. This means that now somewhere in \verb|rs1| there is a reference to \verb|rs2| -- exactly the other way around from what one would expect from the code. This prevents resources allocated for \verb|rs2| from beeing freed while \verb|rs1| is alive.
 
-This can cause space leaks, where allocated resources are kept alive longer than expected or needed. As an extreme example, consider now this interaction
+This causes space leaks, where allocated resources are kept alive longer than expected or needed. As an extreme example, consider now this interaction
 \begin{verbatim}
 ghci> RS.get (RS.insert 42 RS.empty)
 fromList [42]
 \end{verbatim}
 The call to \verb|insert| allocates a new cell and registers it with the cell in \verb|RS.empty|. But \verb|RS.empty| is a \emph{static} value, and will never be garbage collected!
 
-To fix this, we notice that once we are done calculating a value (either because we query it using \verb|get|, or because it is needed in the calculation of such a value), it will never change any further. So our propagator API allows “freezing“ a cell, and our pure wrapper freezes cells after the value is computed.
+To fix this, we notice that once we are done calculating a value (either because we query it using \verb|get|, or because it is needed in the calculation of such a value), it will never change any further. So our propagator API allows “freezing“ a cell and dropping the connection to the depenent cells, and our pure wrapper freezes cells after the value is computed.
 
 \section{Is this still Haskell?}\label{sec:pure}
 
 The library presents itself with a innocent looking, pure and simple interface (\cref{fig:api}), but the implementation is full of side-effects (as seen in \cref{sec:impl}).
-Does this leak, or is does programming still feel like programming Haskell?
+Does this leak, or is does programming with it still feel like programming Haskell?
 Is this really pure? Did we create a beautiful abstraction, or are the types a lie?
 
 \subsection{What does purity even mean?}
 
 We found that this question is not easy to answer, because there does not exist a single, clear and widely accepted definition of “pure”.
-This paper is not the place to give an authoritative answer, but we can look at various language properties that are commonly associated with a pure  (and some associated with Haskell in particular), and see whether they still hold in the presence of our library:
+This paper is not the place to give an authoritative answer, so we look at various language properties commonly associated with a pure (and some associated with Haskell in particular), and see whether they still hold in the presence of our library
 
-\subsection{Type safety.}
+\subsection{Type safety}
 
-Certainly purity ought to imply memory- and in type safety: What we get out of \verb|RS.get| should really be a valid \verb|Set|, and not some corrupted memory.
+Certainly purity ought to imply memory and type safety: What we get out of \verb|RS.get| should really be a valid \verb|Set|, and not some corrupted memory.
 
 It is not hard to break type safety with \verb|unsafePerformIO|, especially when there are mutable references and polymorphism around. Nevertheless, we are fairly confident that our library is type and memory safe.
 
-\subsection{No (observable) side effects.}
+\subsection{No (observable) side effects}
 
-Our library uses \verb|IO| inside, and clearly we would not consider it to be pure if inserting \verb|42| into a set would make the computer eject the CD drive. Avoiding these kind of side effects is obvious and simple -- we just don't do it.
+Our library uses \verb|IO| inside, and clearly we would not consider it to be pure if inserting \verb|42| into a set would make the computer eject the CD drive. Avoiding these blatant side effects is simple -- we just don't do it.
 
-However, \verb|RS.insert 42 rs| \emph{does} destructively modify mutable data structures inside of \verb|rs|. It is crucial that these changes stay internal to the library, and are not observable by the programmer. It must not affect what the programmer sees when they run \verb|RS.get rs|, nor any other \emph{observable} values. Again, we believe that this is the case.
+However, \verb|RS.insert 42 rs| \emph{does} destructively modify mutable data structures inside \verb|rs|. It is crucial that these changes stay internal to the library, and are not observable by the programmer. It must not affect the result the programmer gets via \verb|RS.get rs|, nor any other \emph{observable} value. Again, we believe that this is the case.
 
-Note that the space leak issue described in \cref{sec:spaceleak} is almost an issue of this kind: If we’d include space leaks in our notion of “observable behavior”, then there we had such a side-effect issue we had to address.
+That the space leak issue of the naive implementation described in \cref{sec:spaceleak} is almost an issue of this kind: If we’d include space leaks in our notion of “observable behavior”, then that would be an example of such a eide-effect issue.
 
 \subsection{Evaluation order independence.}
 
@@ -579,24 +598,24 @@ Purity is usually understood to also imply referential transparency: If \verb|x|
 
 Care has to be taken when interpreting this definition in recursive definitions. Of course we do not expect \verb|let x = 1 in x| to be the same as \verb|let x = x in x|, although we merely replaced \verb|1| with \verb|x|.
 
-So is our library still referential transparent? By virtue of calculating a unique fixpoint, it is!  The value of \verb|let rs2 = RS.insert 42 rs1| is the (least) set for which \verb|RS.get rs2 == S.insert 42 (RS.get rs1)| is true, and thus \verb|rs2| and \verb|RS.insert 42 rs1| can be used interchangeable.
+So is our library still referential transparent? By virtue of always calculating a unique fixpoint, it is!  The value of \verb|let rs2 = RS.insert 42 rs1| is the (least) set for which the equation \verb|RS.get rs2 == S.insert 42 (RS.get rs1)| is true, and thus \verb|rs2| and \verb|RS.insert 42 rs1| can be used interchangeable.
 
-This restriction to fixpoints, i.e.\ to solutions of a set of equations, puts a clear limit on the kind of observations we allow the programmer to make about the recursive sets. For example, it would not be pure if the programmer could obtain the number of cells taking part in the current recursion. This rules out this pure embedding for applications where the graph structure of the equations (and not just a solution of the equations) is of interest, e.g.\ generating circuit descriptions (\cite{circuits}).
+This restriction to fixpoints, i.e.\ to solutions of a set of equations, puts a clear limit on the kind of observations we allow the programmer to make about the recursive equations. For example, it would not be pure if the programmer could obtain the number of equations. This rules out using our approach for use-cases where the actual graph structure of the equations (and not just a solution of the equations) is of interest, e.g.\ generating circuit descriptions \cite{observable-sharing}.
 
 \subsection{Program equivalences}
 
 Referential transparency is a crucial ingredient to equational reasoning: rewriting the code according to a set of rules, while preserving its meaning. Replacing \verb|x| with its definition \verb|e| is called unfolding, or \textdelta-reduction, but there are further program transformations that we expect to preserve semantics.  They may be applied by optimizing compiler, used in program verification or simply by a programmer trying to understand the meaning of the code.
 
-Ideally, all program transformations that are meaning-preserving in pure Haskell are still in the presence of our library. This is especially important for those transformations applied by the Haskell compiler, such as partial evaluation, case-of-case, worker/wrapper etc.\ (\cite{optimiser}). Because of the nice equational properties of our library, we are fairly certain that all these are still meaning-preserving in the presence of our library.
+Ideally, all program transformations that are meaning-preserving in pure Haskell are still meaning-preserving in the presence of our library. This is especially important for those transformations applied by the Haskell compiler, such as partial evaluation, case-of-case, worker/wrapper etc.\ (\cite{optimiser}). Because of the nice equational properties of our library, we are fairly certain that all these are still meaning-preserving in the presence of our library.
 
-We’ would have to worry if there were transformations would could break recursive sharing, as this sharing is crucial for our library, but the compiler is already very careful not to untie any knots.
+We would have to worry if there were transformations would could break recursive sharing, as this sharing is crucial for our library, but the compiler is already very careful not to untie any knots.
 
 \subsection{The (reverse) SAT}\label{sec:sat}
 
 There is, however, a transformation that is meaning-preserving in Haskell, but in the presence of our library can make terminating programs non-terminating:
 The static argument transformation (SAT), applied in reverse.
 
-In Haskell, if we have a recursive function with one parameter, which simply passes on that parameter unchanged in each recursive call, and it is always called with the same argument, we can change its definition to a recursively defined value: We can change
+In a lazy language like Haskell, if we have a recursive function with one parameter, which simply passes on that parameter unchanged in each recursive call, and it is always called with the same argument, we can change its definition to a recursively defined value: We can change
 \begin{verbatim}
 let x y = ... (x y) ... y ... in x e
 \end{verbatim}
@@ -614,13 +633,13 @@ ghci> let rs y = RS.insert y (rs y) in RS.get (rs 42)
 fromList ^CInterrupted.
 \end{verbatim}
 
-This is not a simple infelicity of our implementation, but a fundamental limitation: In the original program, our library can get its (magic, \verb|unsafePerformIO|-powered) hands on a \emph{finite} graph of connected values. In the transformed program there is now a recursive function that endlessly creates new values, and our library can never see a complete set of equations. It seems that no implementation of the interface in \cref{fig:api} can solve this problem -- this shows that a pure implementation does not exist.
+This is not a simple infelicity of our implementation, but a fundamental limitation: In the original program, our library can get its (magic, \verb|unsafePerformIO|-powered) hands on a \emph{finite} graph of connected values. In the transformed program there is now a recursive function that endlessly creates new values, and our library can never see a complete set of equations. It seems that no (reasonable) implementation of the interface in \cref{fig:api} can solve this problem -- this shows that a pure implementation does not exist.
 
-So does this invalidate our claims that we built a beautiful, well-behaved, pure abstraction? In the end that depends on your expectation: Do you expect that in a pure language the SAT preserves meaning, including termination? Or is that an additional property of the language that you can do without?
+So does this invalidate our claims that we built a beautiful, well-behaved, pure abstraction? In the end that depends on your expectation: Do you expect that in a pure language the static argument transformation preserves meaning, including termination? Or is that an additional property of the language, which we can maybe do without?
 
 As you ponder this question, note that if you include (asymptotic) resource usage in your expectation of program equivalence, then (reverse) SAT is already rather dangerous in Haskell: The nice and fast knot-tied \verb|fibs| from the introduction becomes horribly inefficient once you turn it into a recursive \emph{function} (\verb|let fibs _ = 0 : 1  : ...|). And because the compiler care about the (asymptotic) resource usage, we can be fairly certain that it will not just nilly-willy transform our code like that.
 
-\Citet[Fact 3.7]{sabry} points out that merely changing the set of observational equivalences does \emph{not} imply that the extended language is not pure.
+\Citet[Fact 3.7]{sabry} points out that merely changing the set of observational equivalences does , in generaly, \emph{not} imply that the extended language is not pure.
 
 \subsection{Sabry's criterion}
 
@@ -631,7 +650,7 @@ A language is purely functional if (i) it includes every simply typed λ-calculu
 divergence and errors).
 \end{quote}
 
-It is not straight-forward to apply this criterion to our library, or Haskell itself, because it assumes the existence of these three implementations, and we do not have that for Haskell. Even if we had, in the call-by-value implementation, all our recursive definitions would vacuously loop, and in the call-by-name implementation (which very like after the reverse static argument transformation), our library would not see \emph{finite} graphs, so all interesting programs would become no-terminating. In that sense, however, our library \emph{is} pure according to Sabry’s criterion.
+It is not straight-forward to apply this criterion to our library, or Haskell itself, because it assumes the existence of these three implementations, and we do not have that for Haskell. Even if we had, in the call-by-value implementation, all our recursive definitions would vacuously loop, and in the call-by-name implementation (quite like after the reverse static argument transformation), our library would not see \emph{finite} graphs, so all interesting programs would become no-terminating. In that sense, our library \emph{is} pure according to Sabry’s criterion.
 
 Because it requires multiple implementations we find Sabry’s criterion of purity not fully convincing. Maybe there exists a suitable criterion that works with a single language semantics, maybe by listing observable equivalences that must hold for a language to be considered pure?
 We'll leave this question hanging, hoping it can tempt someone to give a satisfying answer.
@@ -645,10 +664,10 @@ We'll leave this question hanging, hoping it can tempt someone to give a satisfy
 
 So with the exception of preservation under the inverse static argument transformation, we are fairly confident that our library is as pure as advertised. Ideally we'd like to be sure, and we’d be sure if we could perform a rigorous proof.  That not only requires a clear definition of what exactly “pure“ means, as discussed above, but also a framework that allows us to to reason about lazy programs with \verb|unsafePerformIO|, \verb|IORef|, laziness and (ideally) multiple threads.
 
-Unfortunately, we do not know how to do that well. In the single-threaded world we could imagine extending an operational semantics for lazy languages such as \citeauthor{launchbury}’s [\citeyear{launchbury}] natural semantics for lazy evaluation with a global store for the mutable variables, and spurious evaluations for \verb|unsafePerformIO|, but it seems hard and we have not even added threads.
+Unfortunately, we do not know how to do that well. In the single-threaded world we could imagine extending an operational semantics for lazy languages such as \citeauthor{launchbury}’s [\citeyear{launchbury}] natural semantics for lazy evaluation with a global store for the mutable variables, and spurious evaluations for \verb|unsafePerformIO|, but it seems tedious and we have not even added threads.
 
-The maybe most similar work is done  by \citet{runST}, who proved the encapsulation by \verb|runST :: ST -> a | to be safe, but it does not yet cover laziness nor concurrency.
-They used the Iris framework, in that context one even finds a mechanized proof of the correctness of a generic fixpoint solver \citep{spygame}.
+The maybe most similar work is \citeauthor{runST}'s \citeyear{runST} proof that \verb|runST :: ST -> a| is safe, but it does not yet cover laziness nor concurrency.
+They used the Iris framework, and for Idris one even finds a mechanized proof of the correctness of a generic fixpoint solver \citep{spygame}.
 It seems that important building blocks are already there, and we hope that this paper can maybe spurn motivate more work in that direction.
 
 
@@ -658,11 +677,11 @@ The present work draws inspiration from and connects to various directions.
 
 \subsection{Fixpoint solvers and propagation networks}
 
-\Cref{sec:impcore} describes the “imperative core” of our library: A underlying library that allows us to declare the cells of a possibly cyclic graph of values, and their relations, let that library determine the solution, and then read it off. For the purposes of this paper we can assume this to be a black box, and avoid getting distracted by questions related to the theory and implementation of this black box, which is good, as there is much interesting than can be said and done here.
+\Cref{sec:impcore} describes the “imperative core” of our library: An underlying library that allows us to declare the cells of a possibly cyclic graph of values and their relations and finds the solution. For the purposes of this paper we can assume this to be a black box, to avoid getting distracted by questions related to the theory and implementation of this black box, which is good, as there is much interesting than can be said and done here.
 
 All the work in making fixpoint solvers and data-flow analyses efficient is relevant here \citep{kildall-73,kam-ullman-76}. An important difference to typical data-flow analyses is that in order to stay pure, we cannot afford to make conservative approximations.
 
-Also related is the concept of \emph{propagator network} \citep{propagator}, although but our use-case is a bit simpler, as information only flows in one direction along an edge, and once we queried the value of one node, we never add more constraints that would influence that node.
+Also related is the concept of \emph{propagator network} \citep{propagator}, although our use-case is a bit simpler, as information only flows in one direction along an edge, and once we queried the value of one node, we never add more constraints that would influence that node.
 
 %\subsection{LVars}
 %
@@ -672,21 +691,20 @@ Also related is the concept of \emph{propagator network} \citep{propagator}, alt
 
 \Citet{observable-sharing} made sharing observable in Haskell, so that they can very elegantly describe logic circuits in Haskell. They extend pure Haskell with operations that one might dismiss as impure (observable object identity), point out that this breaks some equational equivalences of Haskell, but that this may be acceptable, given that some of these code transformations are not benign to begin with, as they can duplicate arbitrary amount of work anyways -- a line of reasoning you may recognize from \cref{sec:pure}.
 
-Their extension to Haskell is, in a way, bolder: It breaks more laws (referential transparency) in order to make the structure of the embedded graph observable, as necessary for their poster user-case. With our library, you \emph{cannot} observe the structure of the graph; you only get your hands on a unique fixpoint, which naturally limits the use-cases.
+Their extension to Haskell is, in a way, bolder: It breaks more laws (referential transparency) in order to make the structure of the embedded graph observable, as necessary for their poster use-case. With our library, you \emph{cannot} observe the structure of the graph; you only get your hands on a unique fixpoint. This means it is unsuitable for some use-cases, but also less intrusive.
 
-We probably could have implemented our library on top of the observable sharing extension, reifying the graph of values as a data structure, naming the nodes, and solving it this way. We chose to do it differently, and instead use Haskell's laziness and \verb|unsafePerformIO| (which will be executed once per value) to create a unique mutable cells, let those cells refer to each other. So the graph is never actually turned into a (Haskell-level) graph data structure and the cells are not numbered or named; instead the graphs remains on the heap, cells are implicitly identified by their object identity, and the bookkeeping data for each cell is stored within its mutable fields.
+We probably could have implemented our library on top of their observable sharing mechanism, reifying the graph of values as a data structure with explicitly named. We chose to do it differently, and use Haskell's laziness together with \verb|unsafePerformIO| (which will be executed once per value) to create unique mutable cells and let those cells refer to each other. The graph is never actually turned into a (Haskell-level) data structure and the cells are not (explicitly) numbered or named; instead the graphs is represented as pointers on the heap, cells are implicitly identified by their object identity, and the bookkeeping data for each cell is stored within its mutable fields.
 
-
-Peeking beyond Haskell we should point out CoCaml \citep{cocaml}, which allows the Ocaml programmer to observe the structure of knot-tied (coinductive) data, and even process it while preserving the sharing (so that a \verb|map| over a cyclic list is still cyclic).
+Looking beyond Haskell we want to point out CoCaml \citep{cocaml}, which allows the Ocaml programmer to observe the structure of knot-tied (coinductive) data, and even process such data while preserving the sharing (so that a \verb|map| over a cyclic list is still cyclic).
 
 
 \subsection{Logic programming}
 
-For the kind of use-cases presented here, logic programming languages like Prolog and Datalog are certainly on their home turf. What we bring to the table here is the seamless integration into a purely functional language.
+For the kind of use-cases presented here, logic programming languages like Prolog and Datalog are certainly on their home turf. What we bring to the table is the seamless integration into a purely functional language.
 
-Particularly close to our work, and straddling the functional and logic programming paradigms, is the \emph{Datafun} language \citep{datafun}, a pure and total functional programming language generalizing Datalog, which can declaratively express and compute fixed points of monotone maps on semilattices -- exactly what we are trying to to do. Since they tailor the language around this idea, their type system allows the definition of higher-order \emph{monotonic} functions.
+Particularly close to our work, and straddling the functional and logic programming paradigms, is the \emph{Datafun} language \citep{datafun}, a pure and total functional programming language generalizing Datalog, which can declaratively express and compute fixed points of monotone maps on semilattices -- exactly what we are trying to do. Since they tailor their language around this idea, their type system can recognize \emph{monotonic} function definitions.
 
-Monotonicity is crucial for the existence and uniqueness of a solution (\cref{sec:monotonicity}), and our solution is to simply restrict the interface (\cref{fig:api}) to only expose monotonic functions. This works, but can become quite limiting when it comes to higher-order functions. Assume we'd want to support recursively-definable finite maps as well. A natural order on finite maps is the point-wise ordering. But with that ordering, higher-order operations like \verb|map :: (a -> b) -> RMap k a -> RMap k b| are only monotonic if the argument is monotonic, and Haskell's type system does not allow us to express that constraint. Without these higher-order functions, however, the map API would be quite impoverished, so we do not support finite maps with the point-wise ordering in our library.\footnote{You might notice the \texttt{Data.Recursive.Map} module in the package. This implements maps with the \emph{discrete} ordering on values, where all higher order function arguments are vacuously monotonic, thus avoiding this issue.} Datafun's type system has a separate function arrow $\xrightarrow{+}$ to express monotonic arrows, and thus supports this use-case.
+Monotonicity is crucial for the existence and uniqueness of a solution (\cref{sec:monotonicity}). We ensure monotonicity by simply restricting the interface (\cref{fig:api}) to only expose monotonic functions. This works, but is rather limiting when it comes to higher-order functions. Assume we would want to support recursively-definable finite \emph{maps} as well. A natural order on finite maps is the point-wise ordering. But with that ordering, higher-order operations like \verb|map :: (a -> b) -> RMap k a -> RMap k b| are only monotonic if their argument is monotonic, and Haskell's type system does not allow us to express that constraint. Without these higher-order functions, however, the map API would be quite impoverished, so we do not support finite maps with the point-wise ordering in our library.\footnote{You might notice the \texttt{Data.Recursive.Map} module in the package. This implements maps with the \emph{discrete} ordering on values, where all higher order function arguments are vacuously monotonic, thus avoiding this issue.} Datafun's type system has a separate function arrow $\xrightarrow{+}$ to characterize monotonic functions, and thus supports this use-case quite well.
 
 
 \bibliographystyle{ACM-Reference-Format}
