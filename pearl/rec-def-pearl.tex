@@ -32,9 +32,9 @@
 
 
 \begin{abstract}
-Haskell’s laziness allows the programmer to express some problems very declaratively and naturally, by recursive equations. Unfortunately, if the input is “too recursive”, these very elegant idioms can fall into a black hole, and the programmer has to resort to more pedestrian approaches.
+Haskell’s laziness allows the programmer to solve some problems naturally and declaratively via recursive equations. Unfortunately, if the input is “too recursive”, these very elegant idioms can fall into the dreaded black hole, and the programmer has to resort to more pedestrian approaches.
 
-It does not have to be that way: We built variants of common pure data structures (Booleans, sets) that are recursively definable. Internally, they do rather nasty things, but the user sees a beautiful and pure API, and with these their recursive idioms -- magically -- work.
+It does not have to be that way: We built variants of common pure data structures (Booleans, sets) where recursive definitions are productive. Internally, the infamous \texttt{unsafePerformIO} is at work, but the user only sees a beautiful and pure API, and their pretty recursive idioms -- magically -- work again.
 
 %In the end, this raises interesting questions about the precise nature of purity.
 \end{abstract}
@@ -63,7 +63,7 @@ It does not have to be that way: We built variants of common pure data structure
 
 \section{Introduction}
 
-Haskell is a pure and lazy programming language, and the laziness allows us to write some algorithms very elegantly, by recursively referring to already calculated values. A typical and famous example is the following definition of the Fibonacci numbers, as an infinite stream:
+Haskell is a pure and lazy programming language, and this laziness allows us to express some algorithms very elegantly, by recursively referring to currently calculated values. A typical and famous example is the following definition of the Fibonacci numbers as an infinite stream:
 \begin{verbatim}
 fibs :: [Integer]
 fibs = 0 : 1 : zipWith (+) fibs (tail fibs)
@@ -72,7 +72,7 @@ This is often called “knot-tying”, because a value (here \verb|fibs|) has a 
 
 \subsection{Tying the knot with graphs}
 
-A maybe more practical example is the following calculation of the reflexive transitive closure of a graph, i.e.\ for each node the set of nodes reachable from it. Let's represent graphs as maps from vertices (\verb|Integer|) to lists of vertices:
+A maybe more practical example is the following calculation of the reflexive transitive closure of a graph, i.e.\ for each node the set of nodes reachable from it. Let's represent a graph as a map from vertices (\verb|Int|) to lists of adjacent vertices:
 \begin{verbatim}
 import qualified Data.Set as S
 import qualified Data.Map as M
@@ -87,42 +87,41 @@ transitive1 g = M.map S.toList sets
     sets :: M.Map Int (S.Set Int)
     sets = M.mapWithKey (\v vs -> S.insert v (S.unions [ sets M.! v' | v' <- vs ])) g
 \end{verbatim}
-This code is quite close to the prosaic specification “the reachable nodes from a node \verb|v| are \verb|v| itself, plus all the nodes reachable from its successors”; hence we can claim that this code is declarative.
+This code is quite close to the prosaic specification “the reachable nodes from a node \verb|v| are \verb|v| itself, plus all the nodes reachable from its successors”; hence we can call this code declarative.
 
 Note how the definition of \verb|sets| refers to itself -- “we are tying a knot”.
 
 \subsection{It works, until it doesn't}
 
-This is the kind of code we like to impress our imperative-code-writing friend with, and it works quite nicely:
+This is the kind of code we like to impress our strict-language-using friend with, and it works quite nicely:
 \begin{verbatim}
-ghci> transitive1 $ M.fromList [(1,[3]),(2,[1,3]),(3,[])]
+ghci> transitive1 (M.fromList [(1,[3]),(2,[1,3]),(3,[])])
 fromList [(1,[1,3]),(2,[1,2,3]),(3,[3])]
 \end{verbatim}
-
-At least until our imperative-code-writing friend challenges us to add just one small edge to the graph:
+%
+At least until our strict-language-using friend challenges us to add just one small edge to the graph:
 \begin{verbatim}
-ghci> transitive1 $ M.fromList [(1,[2,3]),(2,[1,3]),(3,[])]
+ghci> transitive1 (M.fromList [(1,[2,3]),(2,[1,3]),(3,[])])
 fromList [(1,fromList ^CInterrupted.
 \end{verbatim}
-Why does it fail? Because the graph has a \emph{cycle} ($1 \to 2 \to 1$), and that makes our code to get lost in an infinite loop, until we abort it.
+Why does it fail? Because the graph has a \emph{cycle} ($1 \to 2 \to 1$), and that makes our code get lost in an infinite loop, until we abort the program.
 
-This is quite disappointing, because it if we want to be able to handle recursive equations, we have to implement this in a much more tedious way, maybe with an explicit loop, keeping track of the set of seen functions (see \cref{sec:imp} if you really want to see it, but the goal is that you shoudn’t have to). It works, and most of us have written that code once (or many times), but we can no longer impress our friend.
+This is quite disappointing, because in order to handle recursive graphs as input, we now have to implement this in a much more tedious way, maybe with an explicit loop, keeping track of the set of seen vertices (see \cref{sec:imp} if you really want to see it, but the point is that you shoudn’t have to). It works, and most of us have written that idiom once (or many times), but we cannot impress our friend with that.
 
-But it seems we should: The declarative specification that \verb|transitive1| is derived from holds for recursive graphs as well, so it does not seem unreasonable to expect this code to handle also recursive graphs. So where does it go wrong? The way we use the lazy map data structure is fine; it helps us to express the set of reachable nodes by way of other such sets.
-
-But the set data structure with its operations \verb|insert| and \verb|union| are not lazy enough: \verb|union| needs to know the value of its arguments before it can produce something useful, and thus cannot be used recursively.
+But it seems we should: The declarative specification, from which we have derived \verb|transitive1|, holds for recursive graphs as well, so it does not seem that unreasonable to expect our code to handle recursive graphs as well. Where does it go wrong? The way we use the lazy map data structure is fine; it helps us to express the set of reachable nodes by way of other such sets.
+The problem is that the set data structure, with its operations \verb|insert| and \verb|union|, is not lazy enough: \verb|union| needs to know the value of its arguments before it can produce something useful, and thus cannot be used recursively.
 
 \subsection{We need better sets!}
 
-In this paper we present a data structure for sets, called \verb|RSet| where such recursive expressions do work! Its API is almost the same as that of \verb|Data.Set|. In particular, it consists of \emph{pure} functions -- no monads necessary. The fragment relevant for our example is:
+In this paper we present a data structure for sets, called \verb|RSet|, where such recursive expressions do work! Its API is almost the same as that of \verb|Data.Set|. In particular, it consists of plain \emph{pure} functions -- no monads necessary. The fragment relevant for our example is:
 \begin{verbatim}
 insert :: Ord a => a -> RSet a -> RSet a
 unions :: Ord a => [RSet a] -> RSet a
-get :: RSet a -> Set a
+get    ::          RSet a -> Set a
 \end{verbatim}
-Besides the two operations used by \verb|transitive1|, with type signatures mirroring those of \verb|Data.Set| exactly, there is also a function to convert a \verb|RSet| to a \verb|Set|.
+Besides the two operations used by \verb|transitive1|, with type signatures mirroring those of \verb|Data.Set| exactly, there is the function \verb|get| to convert our \verb|RSet| to a normal \verb|Set|.
 
-We can use this data structure in our code without changing its structure; we just swap out the operations (imported qualified as \verb|RS|) and convert back to conventional sets in the end:
+We can use this data structure without changing the structure of our code; we just swap out the operations (imported qualifiedly as \verb|RS|) and convert back to conventional sets in the end:
 \begin{verbatim}
 transitive2 :: Graph -> Graph
 transitive2 g = M.map (S.toList . RS.get) sets
