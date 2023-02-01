@@ -36,24 +36,35 @@
 %format RDB                     = "\StyleMod{RDB}"
 %format Data.Set                = "\StyleMod{Data.Set}"
 %format Data.Recursive.Set      = "\StyleMod{Data.Recursive.Set}"
+%format Data.Recursive.Map      = "\StyleMod{Data.Recursive.Map}"
 %format Data.Recursive.Bool     = "\StyleMod{Data.Recursive.Bool}"
 %format Data.Recursive.DualBool = "\StyleMod{Data.Recursive.DualBool}"
+%format Data.Propagator.P2      = "\StyleMod{Data.Propagator.P2}"
 
 % all types
-%format Exp       = "\StyleType{Exp}"
-%format Graph     = "\StyleType{Graph}"
-%format Bool      = "\StyleType{Bool}"
-%format Map       = "\StyleType{Map}"
-%format M.Map     = "\StyleType{M.Map}"
-%format Set       = "\StyleType{Set}"
-%format S.Set     = "\StyleType{S.Set}"
-%format Ord       = "\StyleType{Ord}"
-%format RSet      = "\StyleType{RSet}"
-%format V         = "\StyleType{V}"
-%format Integer   = "\StyleType{Integer}"
-%format Int       = "\StyleType{Int}"
-%format RBool     = "\StyleType{RBool}"
-%format RDualBool = "\StyleType{RDualBool}"
+%format Exp           = "\StyleType{Exp}"
+%format Graph         = "\StyleType{Graph}"
+%format Bool          = "\StyleType{Bool}"
+%format Map           = "\StyleType{Map}"
+%format M.Map         = "\StyleType{M.Map}"
+%format Set           = "\StyleType{Set}"
+%format S.Set         = "\StyleType{S.Set}"
+%format Ord           = "\StyleType{Ord}"
+%format RSet          = "\StyleType{RSet}"
+%format RS.RSet       = "\StyleType{RS.RSet}"
+%format RMap          = "\StyleType{RMap}"
+%format V             = "\StyleType{V}"
+%format Integer       = "\StyleType{Integer}"
+%format String        = "\StyleType{String}"
+%format Int           = "\StyleType{Int}"
+%format IO            = "\StyleType{IO}"
+%format ST            = "\StyleType{ST}"
+%format IORef         = "\StyleType{IORef}"
+%format Cell          = "\StyleType{Cell}"
+%format RBool         = "\StyleType{RBool}"
+%format RB.RBool      = "\StyleType{RB.RBool}"
+%format RDualBool     = "\StyleType{RDualBool}"
+%format RDB.RDualBool = "\StyleType{RDB.RDualBool}"
 
 % all constructors
 %format Var    = "\StyleConstr{Var}"
@@ -91,7 +102,7 @@
   , BoldFont = Ubuntu-B
   , BoldItalicFont = Ubuntu-BI
   , ItalicFont = Ubuntu-RI
-  , WordSpace = {1,2,1}
+  , WordSpace = {1.5,1,0}
   ]
 
 % URL fix
@@ -105,7 +116,7 @@
 \def\Url@@underscore{\nfss@@text{\leavevmode \kern.06em\vbox{\hrule\@@width.3em}}}
 \makeatother
 
-
+\newenvironment{itquote}{\begin{quote}\itshape}{\end{quote}}
 
 \setcopyright{rightsretained}
 \copyrightyear{2023}
@@ -138,7 +149,7 @@
 \begin{abstract}
 Haskell’s laziness allows the programmer to solve some problems naturally and declaratively via recursive equations. Unfortunately, if the input is “too recursive”, these very elegant idioms can fall into the dreaded black hole, and the programmer has to resort to more pedestrian approaches.
 
-It does not have to be that way: We built variants of common pure data structures (Booleans, sets) where recursive definitions are productive. Internally, the infamous \texttt{unsafePerformIO} is at work, but the user only sees a beautiful and pure API, and their pretty recursive idioms -- magically -- work again.
+It does not have to be that way: We built variants of common pure data structures (Booleans, sets) where recursive definitions are productive. Internally, the infamous |unsafePerformIO| is at work, but the user only sees a beautiful and pure API, and their pretty recursive idioms -- magically -- work again.
 
 %In the end, this raises interesting questions about the precise nature of purity.
 \end{abstract}
@@ -756,13 +767,13 @@ So does this invalidate our claims that we built a beautiful, well-behaved, pure
 
 As you ponder this question, note that if you include (asymptotic) resource usage in your expectation of program equivalence, then such lambda-lifting is already rather dangerous in Haskell: The nice and fast knot-tied |fibs| from the introduction becomes horribly inefficient once you turn it into a recursive \emph{function} (|let fibs x y = x : y  : ...|). Because the lamda-lifting transformation is only a equivalence as long as we ignore (asymptotic) complexity, it seems that breaking that equivalence is not too wicked.
 
-\Citet[Fact 3.7]{sabry} points out that merely changing the set of observational equivalences does , in generaly, \emph{not} imply that the extended language is not pure.
+\Citet[Fact 3.7]{sabry} points out that merely changing the set of observational equivalences does, in general, \emph{not} imply that the extended language is not pure.
 
 \subsection{Compiler transformation}
 
 The compiler tends to share the attitude that (at least asymptotic) complexity is a relevant aspect of program semantics, and will be careful to preserve (recursive) sharing that is explicit in the source program. Therefore we can be fairly certain that it will not just nilly-willy apply such lambda-lifting to our code.
 
-The same holds for all the other transformations applied by the compiler, such as partial evaluation, case-of-case, worker/wrapper, common subexpression elimination etc.\ (\cite{optimiser}). Because our library has nice equational properties, as long as sharing is preserved, we can be fairly certain that all these are still meaning-preserving in the presence of our library.
+The same holds for all the other transformations applied by the compiler, such as partial evaluation, case-of-case, worker/wrapper, common subexpression elimination etc.\ \citep{optimiser}. Because our library has nice equational properties, as long as sharing is preserved, we can be fairly certain that all these are still meaning-preserving in the presence of our library.
 
 
 \subsection{Sabry's criterion}
@@ -828,7 +839,7 @@ For the kind of use-cases presented here, logic programming languages like Prolo
 
 Particularly close to our work, and straddling the functional and logic programming paradigms, is the \emph{Datafun} language \citep{datafun}, a pure and total functional programming language generalizing Datalog, which can declaratively express and compute fixed points of monotone maps on semilattices -- exactly what we are trying to do. Since they tailor their language around this idea, their type system can recognize \emph{monotonic} function definitions.
 
-Monotonicity is crucial for the existence and uniqueness of a solution (\cref{sec:monotonicity}). We ensure monotonicity by simply restricting the interface (\cref{fig:api}) to only expose monotonic functions. This works, but is rather limiting when it comes to higher-order functions. Assume we would want to support recursively-definable finite \emph{maps} as well. A natural order on finite maps is the point-wise ordering. But with that ordering, higher-order operations like |map :: (a -> b) -> RMap k a -> RMap k b| are only monotonic if their argument is monotonic, and Haskell's type system does not allow us to express that constraint. Without these higher-order functions, however, the map API would be quite impoverished, so we do not support finite maps with the point-wise ordering in our library.\footnote{You might notice the \texttt{Data.Recursive.Map} module in the package. This implements maps with the \emph{discrete} ordering on values, where all higher order function arguments are vacuously monotonic, thus avoiding this issue.} Datafun's type system has a separate function arrow $\xrightarrow{+}$ to characterize monotonic functions, and thus supports this use-case quite well.
+Monotonicity is crucial for the existence and uniqueness of a solution (\cref{sec:monotonicity}). We ensure monotonicity by simply restricting the interface (\cref{fig:api}) to only expose monotonic functions. This works, but is rather limiting when it comes to higher-order functions. Assume we would want to support recursively-definable finite \emph{maps} as well. A natural order on finite maps is the point-wise ordering. But with that ordering, higher-order operations like |map :: (a -> b) -> RMap k a -> RMap k b| are only monotonic if their argument is monotonic, and Haskell's type system does not allow us to express that constraint. Without these higher-order functions, however, the map API would be quite impoverished, so we do not support finite maps with the point-wise ordering in our library.\footnote{You might notice the |Data.Recursive.Map| module in the package. This implements maps with the \emph{discrete} ordering on values, where all higher order function arguments are vacuously monotonic, thus avoiding this issue.} Datafun's type system has a separate function arrow $\xrightarrow{+}$ to characterize monotonic functions, and thus supports this use-case quite well.
 
 
 \bibliographystyle{ACM-Reference-Format}
@@ -838,10 +849,10 @@ Monotonicity is crucial for the existence and uniqueness of a solution (\cref{se
 \appendix
 \section{The reflexivie transitive closure, pedestrian-style}\label{sec:imp}
 
-In the introduction we mentioned that without the data structure presented in this paper, a programmer likely has to write their reflexive-transitive-closure code with an explicit loop (a tail-recursive |go| function), keeping track of seen nodes:
+In the introduction we mentioned that without the data structure presented in this paper, a programmer likely has to write their reflexive-transitive-closure code with an explicit loop (a tail-recursive |go| function), explicitly keeping track of seen nodes to avoid running in circles:
 \begin{code}
-transitiveImp :: Graph -> Graph
-transitiveImp g = M.fromList [ (v, S.toList (go S.empty [v])) | v <- M.keys g ]
+transitive3 :: Graph -> Graph
+transitive3 g = M.fromList [ (v, S.toList (go S.empty [v])) | v <- M.keys g ]
   where
     go :: S.Set Int -> [Int] -> S.Set Int
     go seen [] = seen
