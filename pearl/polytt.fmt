@@ -21,18 +21,6 @@
 %format }               = "{\char125}"
 %format ...             = "{\ldots}"
 
-% The first space should be \;, the fourth etc a double quad
-\newcounter{spaces}
-\newcommand{\spacestart}{\setcounter{spaces}{0}}
-\newcommand{\nextspace}{%
-  \stepcounter{spaces}%
-  \ifnum\value{spaces}=1{ }\fi%
-  \ifnum\value{spaces}=4\quad\fi%
-  \ifnum\value{spaces}=8\quad\fi%
-  \ifnum\value{spaces}=12\quad\fi%
-  \ifnum\value{spaces}=16\quad\fi%
-  }
-
 %let autoSpacing        = False
 %subst dummy            = "\cdot"
 %subst inline a         = "\texttt{" a "}"
@@ -43,7 +31,7 @@
 %subst keyword a        = "\textbf{" a "}"
 %subst spaces a         = a
 %subst special a        = a
-%subst space            = "\;"
+%subst space            = " "
 %subst conid a          = a
 %subst varid a          = a
 %subst consym a         = a

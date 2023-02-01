@@ -6,10 +6,7 @@
 %format IND = "~~"
 %format -> = "–>"
 %format <- = "<–"
-%format ==- = "==−"
-%format =/= = "=\rlap{\hspace{.13em}/}\phantom=="
 %format :: = "::"
-%format ::: = ":::"
 %format (QUOTETYPE(x)) = "\textquotesingle\textquotesingle " x
 %format (QUOTEVAL(x)) = "\textquotesingle " x
 %format (PRAGMA(x)) = "\{−\# " x " \#−\}"
@@ -26,11 +23,11 @@
 
 % Ubuntu Light for code
 \usepackage{fontspec}
-\setmonofont{Ubuntu-L}%
+\setmonofont{Ubuntu-R}%
   [ Scale = MatchLowercase
-  , BoldFont = Ubuntu-M
-  , BoldItalicFont = Ubuntu-MI
-  , ItalicFont = Ubuntu-LI
+  , BoldFont = Ubuntu-B
+  , BoldItalicFont = Ubuntu-BI
+  , ItalicFont = Ubuntu-RI
   , WordSpace = {1,2,1}
   ]
 
