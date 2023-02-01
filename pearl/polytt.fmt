@@ -28,12 +28,12 @@
 %subst pragma a         = "\mbox{\enskip\{-\#" a " \#-\}\enskip}"
 %subst tex a            = a
 %subst numeral a        = a
-%subst keyword a        = "\textbf{" a "}"
+%subst keyword a        = "\StyleKW{" a "}"
 %subst spaces a         = a
 %subst special a        = a
 %subst space            = " "
-%subst conid a          = a
-%subst varid a          = a
+%subst conid a          = "\StyleCon{" a "}"
+%subst varid a          = "\StyleVar{" a "}"
 %subst consym a         = a
 %subst varsym a         = a
 %subst backquoted a     = "`" a "`"
