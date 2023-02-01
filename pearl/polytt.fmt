@@ -1,0 +1,94 @@
+%if not polytt_read
+%let polytt_read = True
+
+%subst verb a           = "\texttt{" a "}"
+%subst verbatim a       = "\begin{tabbing}'n" a "'n\end{tabbing}'n"
+%subst verbnl           = "\\'n "
+
+%subst comment a        = "\mbox{\onelinecomment{} " a "}"
+%subst nested a         = "\mbox{\commentbegin " a " \commentend}"
+%subst code a           = "\begin{hscode}\SaveRestoreHook'n" a "\ColumnHook'n\end{hscode}\resethooks'n"
+%subst column c a       = "\column{" c "}{" a "}%'n"
+%subst fromto b e t     = "\>[" b "]{}" t "{}\<[" e "]%'n"
+%subst left             = "@{}>{\hspre}l<{ \hspost}@{}"
+%subst centered         = "@{}>{\hspre}c<{ \hspost}@{}"
+%subst dummycol         = "@{}l@{}"
+%subst newline          = "\\'n"
+%subst blankline        = "\\[\blanklineskip]%'n"
+%subst indent n         = "\hsindent{" n "}"
+
+%format {               = "{\char123}"
+%format }               = "{\char125}"
+%format ...             = "{\ldots}"
+
+% The first space should be \;, the fourth etc a double quad
+\newcounter{spaces}
+\newcommand{\spacestart}{\setcounter{spaces}{0}}
+\newcommand{\nextspace}{%
+  \stepcounter{spaces}%
+  \ifnum\value{spaces}=1{ }\fi%
+  \ifnum\value{spaces}=4\quad\fi%
+  \ifnum\value{spaces}=8\quad\fi%
+  \ifnum\value{spaces}=12\quad\fi%
+  \ifnum\value{spaces}=16\quad\fi%
+  }
+
+%let autoSpacing        = False
+%subst dummy            = "\cdot"
+%subst inline a         = "\texttt{" a "}"
+%subst hskip a          = "\hskip" a "em\relax"
+%subst pragma a         = "\mbox{\enskip\{-\#" a " \#-\}\enskip}"
+%subst tex a            = a
+%subst numeral a        = a
+%subst keyword a        = "\textbf{" a "}"
+%subst spaces a         = a
+%subst special a        = a
+%subst space            = "\;"
+%subst conid a          = a
+%subst varid a          = a
+%subst consym a         = a
+%subst varsym a         = a
+%subst backquoted a     = "`" a "`"
+%subst char a           = "{\textquotesingle}" a "{\textquotesingle}"
+%subst string a         = "\char34\textit{\!" a "}{\char34}"
+
+%% hack, to avoid loading lhs2TeX.fmt from lhs2TeX.sty
+%let lhs2tex_lhs2tex_fmt_read = True
+%include lhs2TeX.sty
+
+% copied from polycode.fmt
+\makeatletter
+
+\newcommand{\hsnewpar}[1]%
+  {{\parskip=0pt\parindent=0pt\par\vskip #1\noindent}}
+
+% can be used, for instance, to redefine the code size, by setting the
+% command to \small or something alike
+\newcommand{\hscodestyle}{\ttfamily}
+
+% The command \sethscode can be used to switch the code formatting
+% behaviour by mapping the hscode environment in the subst directive
+% to a new LaTeX environment.
+
+\newcommand{\sethscode}[1]%
+  {\expandafter\let\expandafter\hscode\csname #1\endcsname
+   \expandafter\let\expandafter\endhscode\csname end#1\endcsname}
+
+\newenvironment{plainhscode}%
+  {\hsnewpar\abovedisplayskip
+   \advance\leftskip\mathindent
+   \hscodestyle
+   \def\hspre{}%
+   \def\hspost{}%
+   \pboxed}%
+  {\endpboxed%
+   \hsnewpar\belowdisplayskip
+   \ignorespacesafterend}
+
+% Here, we make plainhscode the default environment.
+
+\newcommand{\plainhs}{\sethscode{plainhscode}}
+\plainhs
+
+\makeatother
+%endif

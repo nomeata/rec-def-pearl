@@ -1,5 +1,51 @@
 \documentclass[manuscript,anonymous,screen,acmsmall]{acmart}
 
+\let\Bbbk\undefined %https://github.com/kosmikus/lhs2tex/issues/82
+\typeout{(./polytt.fmt)} % For latexmk
+%include polytt.fmt
+%format IND = "~~"
+%format -> = "–>"
+%format <- = "<–"
+%format ==- = "==−"
+%format =/= = "=\rlap{\hspace{.13em}/}\phantom=="
+%format :: = "::"
+%format ::: = ":::"
+%format (QUOTETYPE(x)) = "\textquotesingle\textquotesingle " x
+%format (QUOTEVAL(x)) = "\textquotesingle " x
+%format (PRAGMA(x)) = "\{−\# " x " \#−\}"
+%format (FILECHECK(x)) = "−− " x
+%format (LHPRAGMA(x)) = "\{−@ " x " @−\}"
+%format ghci = "\textbf{ghci}"
+
+\renewcommand{\onelinecomment}{\quad–\hspace{.5pt}–\itshape{}}
+\renewcommand{\hsindent}[1]{{\quad\strut}}
+%subst newline          = "\\[-0.3ex]%'n"
+\setlength{\blanklineskip}{0.8ex}
+
+
+
+% Ubuntu Light for code
+\usepackage{fontspec}
+\setmonofont{Ubuntu-L}%
+  [ Scale = MatchLowercase
+  , BoldFont = Ubuntu-M
+  , BoldItalicFont = Ubuntu-MI
+  , ItalicFont = Ubuntu-LI
+  , WordSpace = {1,2,1}
+  ]
+
+% URL fix
+\makeatletter
+% Inspired by http://anti.teamidiot.de/nei/2009/09/latex_url_slash_spacingkerning/
+% but slightly less kern and shorter underscore
+\let\UrlSpecialsOld\UrlSpecials
+\def\UrlSpecials{\UrlSpecialsOld\do\/{\Url@@slash}\do\_{\Url@@underscore}}%
+\def\Url@@slash{\@@ifnextchar/{\kern-.07em\mathchar47\kern-.2em}%
+   {\kern-.0em\mathchar47\kern-.08em\penalty\UrlBigBreakPenalty}}
+\def\Url@@underscore{\nfss@@text{\leavevmode \kern.06em\vbox{\hrule\@@width.3em}}}
+\makeatother
+
+
 \usepackage[capitalise]{cleveref}
 \usepackage{textgreek}
 
@@ -18,7 +64,7 @@
 \title{Functional Pearl: More fixpoints!}
 
 \author{Joachim Breitner}
-\email{mail@joachim-breitner.de}
+\email{mail@@joachim-breitner.de}
 \orcid{0000-0003-3753-6821}
 \affiliation{%
    \institution{unaffiliated}
@@ -64,28 +110,29 @@ It does not have to be that way: We built variants of common pure data structure
 \section{Introduction}
 
 Haskell is a pure and lazy programming language, and this laziness allows us to express some algorithms very elegantly, by recursively referring to currently calculated values. A typical and famous example is the following definition of the Fibonacci numbers as an infinite stream:
-\begin{verbatim}
+\begin{code}
 fibs :: [Integer]
 fibs = 0 : 1 : zipWith (+) fibs (tail fibs)
-\end{verbatim}
+\end{code}
 This is often called “knot-tying”, because a value (here \verb|fibs|) has a definition involving itself.
 
 \subsection{Tying the knot with graphs}
 
 A maybe more practical example is the following calculation of the reflexive transitive closure of a graph, i.e.\ for each node the set of nodes reachable from it. Let's represent a graph as a map from vertices (\verb|Int|) to lists of adjacent vertices:
-\begin{verbatim}
+\begin{code}
 import qualified Data.Set as S
 import qualified Data.Map as M
 type Graph = M.Map Int [Int]
-\end{verbatim}
+\end{code}
 
 Then the reflexive transitive closure can be very elegantly expressed by knot-tying a map from vertices to the set of reachable vertices:
-\begin{verbatim}
+\begin{code}
 transitive1 :: Graph -> Graph
-transitive1 g = M.map S.toList sets where
-  sets :: M.Map Int (S.Set Int)
-  sets = M.mapWithKey (\v vs -> S.insert v (S.unions [ sets M.! v' | v' <- vs ])) g
-\end{verbatim}
+transitive1 g = M.map S.toList sets
+  where
+    sets :: M.Map Int (S.Set Int)
+    sets = M.mapWithKey (\v vs -> S.insert v (S.unions [ sets M.! v' | v' <- vs ])) g
+\end{code}
 This code is quite close to the prosaic specification “the reachable nodes from a node \verb|v| are \verb|v| itself, plus all the nodes reachable from its successors”; hence we can call this code declarative.
 
 Note how the definition of \verb|sets| refers to itself -- “we are tying a knot”.
@@ -93,16 +140,16 @@ Note how the definition of \verb|sets| refers to itself -- “we are tying a kno
 \subsection{It works, until it doesn't}
 
 This is the kind of code we like to impress our strict-language-using friend with, and it works quite nicely:
-\begin{verbatim}
+\begin{code}
 ghci> transitive1 (M.fromList [(1,[3]),(2,[1,3]),(3,[])])
 fromList [(1,[1,3]),(2,[1,2,3]),(3,[3])]
-\end{verbatim}
+\end{code}
 %
 At least until our strict-language-using friend challenges us to add just one small edge to the graph:
-\begin{verbatim}
+\begin{code}
 ghci> transitive1 (M.fromList [(1,[2,3]),(2,[1,3]),(3,[])])
 fromList [(1,fromList ^CInterrupted.
-\end{verbatim}
+\end{code}
 Why does it fail? Because the graph has a \emph{cycle} ($1 \to 2 \to 1$), and that makes our code get lost in an infinite loop, until we abort the program.
 
 This is quite disappointing, because in order to handle recursive graphs as input, we now have to implement this in a much more tedious way, maybe with an explicit loop, keeping track of the set of seen vertices (see \cref{sec:imp} if you really want to see it, but the point is that you shoudn’t have to). It works, and most of us have written that idiom once (or many times), but we cannot impress our friend with that.
@@ -113,26 +160,27 @@ The problem is that the set data structure, with its operations \verb|insert| an
 \subsection{We need better sets!}
 
 In this paper we present a data structure for sets, called \verb|RSet|, where such recursive expressions do work! Its API is almost the same as that of \verb|Data.Set|. In particular, it consists of plain \emph{pure} functions -- no monads necessary. The fragment relevant for our example is:
-\begin{verbatim}
-insert :: Ord a => a -> RSet a -> RSet a
-unions :: Ord a => [RSet a] -> RSet a
-get    ::          RSet a -> Set a
-\end{verbatim}
+\begin{code}
+insert  :: Ord a =>  a -> RSet a  -> RSet a
+unions  :: Ord a =>  [RSet a]     -> RSet a
+get     ::           RSet a       -> Set a
+\end{code}
 In addition to the two operations used by \verb|transitive1|, with type signatures mirroring those of \verb|Data.Set| exactly, we find the function \verb|get| to convert our \verb|RSet| to a normal \verb|Set|.
 
 We can use this data structure without changing the structure of our code; we just swap out the operations (imported qualifiedly as \verb|RS|) and convert back to conventional sets in the end:
-\begin{verbatim}
+\begin{code}
 transitive2 :: Graph -> Graph
-transitive2 g = M.map (S.toList . RS.get) sets where
-  sets :: M.Map Int (RS.RSet Int)
-  sets = M.mapWithKey (\v vs -> RS.insert v (RS.unions [ sets M.! v' | v' <- vs ])) g
-\end{verbatim}
+transitive2 g = M.map (S.toList . RS.get) sets
+  where
+    sets :: M.Map Int (RS.RSet Int)
+    sets = M.mapWithKey (\v vs -> RS.insert v (RS.unions [ sets M.! v' | v' <- vs ])) g
+\end{code}
 
 And indeed, now we \emph{can} handle recursive graphs, and get the correct result:
-\begin{verbatim}
+\begin{code}
 ghci> transitive2 (M.fromList [(1,[2,3]),(2,[1,3]),(3,[])])
 fromList [(1,[1,2,3]),(2,[1,2,3]),(3,[3])]
-\end{verbatim}
+\end{code}
 
 \subsection{Contributions}
 
@@ -164,88 +212,88 @@ In the introduction we have used a data type \verb|RSet| with an API that resemb
 \subsection{Just a isomorphic copy?}
 
 \begin{figure}
-\begin{verbatim}
+\begin{code}
 module Data.Recursive.Set where  -- imported as RS here
   data RSet a
-  get          ::          RSet a ->           Set a
-  mk           ::          Set a ->            RSet a
-  empty        ::                              RSet a
-  singleton    ::          a ->                RSet a
-  insert       :: Ord a => a -> RSet a ->      RSet a
-  delete       :: Ord a => a -> RSet a ->      RSet a
-  union        :: Ord a => RSet a -> RSet a -> RSet a
-  unions       :: Ord a => [RSet a] ->         RSet a
-  intersection :: Ord a => RSet a -> RSet a -> RSet a
-  member       :: Ord a => a -> RSet a ->      RBool
-  null         ::          RSet a ->           RDualBool
-  when         ::          RBool -> RSet a ->  RSet a
-  id           ::          RSet a ->           RSet a
+  get           ::           RSet a ->            Set a
+  mk            ::           Set a ->             RSet a
+  empty         ::                                RSet a
+  singleton     ::           a ->                 RSet a
+  insert        :: Ord a =>  a -> RSet a ->       RSet a
+  delete        :: Ord a =>  a -> RSet a ->       RSet a
+  union         :: Ord a =>  RSet a -> RSet a ->  RSet a
+  unions        :: Ord a =>  [RSet a] ->          RSet a
+  intersection  :: Ord a =>  RSet a -> RSet a ->  RSet a
+  member        :: Ord a =>  a -> RSet a ->       RBool
+  null          ::           RSet a ->            RDualBool
+  when          ::           RBool -> RSet a ->   RSet a
+  id            ::           RSet a ->            RSet a
 
 module Data.Recursive.Bool where  -- imported as RB here
   data RBool
-  get         ::  RBool ->          Bool
-  mk          ::  Bool ->           RBool
-  true, false ::                    RBool
-  (&&),(||)   ::  RBool -> RBool -> RBool
-  and, or     ::  [RBool] ->        RBool
-  not         ::  RBool ->          RDualBool
-  id          ::  RBool ->          RBool
+  get          :: RBool ->           Bool
+  mk           :: Bool ->            RBool
+  true, false  ::                    RBool
+  (&&),(||)    :: RBool -> RBool ->  RBool
+  and, or      :: [RBool] ->         RBool
+  not          :: RBool ->           RDualBool
+  id           :: RBool ->           RBool
 
 module Data.Recursive.DualBool where  -- imported as RDB here
   data RDualBool
-  get         ::  RDualBool ->              Bool
-  mk          ::  Bool ->                   RDualBool
-  true, false ::                            RDualBool
-  (&&),(||)   ::  RDualBool -> RDualBool -> RDualBool
-  and, or     ::  [RDualBool] ->            RDualBool
-  not         ::  RDualBool ->              RBool
-  id          ::  RDualBool ->              RDualBool
-\end{verbatim}
+  get          ::  RDualBool ->               Bool
+  mk           ::  Bool ->                    RDualBool
+  true, false  ::                             RDualBool
+  (&&),(||)    ::  RDualBool -> RDualBool ->  RDualBool
+  and, or      ::  [RDualBool] ->             RDualBool
+  not          ::  RDualBool ->               RBool
+  id           ::  RDualBool ->               RDualBool
+\end{code}
 \caption{The API of recursively definable sets and Booleans}\label{fig:api}
 \end{figure}
 
 At the first glance, \verb|RSet| looks like a isomorphic copy of \verb|Set|, with \verb|get :: RSet a -> Set a| and \verb|mk :: Set a -> RSet a| converting between the types, and all the operations on \verb|RSet| behave as their counterpart on \verb|Set|. Let's quickly check that \citep{quickcheck}:
-\begin{verbatim}
+\begin{code}
 ghci> quickCheck $ \s -> RS.get (RS.mk s) === s
 +++ OK, passed 100 tests.
 ghci> quickCheck $ \s1 s2 -> RS.get (RS.union s1 s2) === S.union (RS.get s1) (RS.get s2)
 +++ OK, passed 100 tests.
-\end{verbatim}
+\end{code}
 
 The second equation generalizes to all operations in the API, giving them a straight-forward specification in terms of the corresponding operation on the underlying vanilla data type. But there must be a difference, else we would not be writing this paper.
 
 \subsection{Recursion!}
 
 The difference is that with \verb|RSet|, \emph{recursively defined expressions work!} For example, using vanilla \verb|Set| from \verb|Data.Set| (imported qualified as \verb|S|), evaluating recursive expressions tends to hang:
-\begin{verbatim}
+\begin{code}
 ghci> let s = S.insert 42 s in s
 fromList ^CInterrupted.
-\end{verbatim}
+\end{code}
 With \verb|RSet|, it simply works:
-\begin{verbatim}
+\begin{code}
 ghci> let s = RS.insert 42 s in RS.get s
 fromList [42]
-\end{verbatim}
+\end{code}
 It works for larger expressions as well
-\begin{verbatim}
+\begin{code}
 ghci> let s = RS.insert 42 (RS.union (RS.insert 23 s) (RS.delete 42 s)) in RS.get s
 fromList [23,42]
-\end{verbatim}
+\end{code}
 Not even mutual recursion poses a problem:
-\begin{verbatim}
-ghci> let s1 = RS.insert 42 s2
-ghci|     s2 = RS.insert 23 s3
-ghci|     s3 = RS.delete 42 s1
+\begin{code}
+ghci> let  s1 = RS.insert 42 s2
+ghci|      s2 = RS.insert 23 s3
+ghci|      s3 = RS.delete 42 s1
 ghci| in (RS.get s1, RS.get s2, RS.get s3)
 (fromList [23,42],fromList [23],fromList [23])
-\end{verbatim}
+\end{code}
 
 In these examples, we build the graph of recursively defined \verb|RSet| values explicitly, using \verb|let|. In practice one would more likely construct that graph using lazy data structures and knot-tying, maybe dynamically based on some input, as done in the introduction.
 
 \subsection{Fixpoints}
 
 It may come as a pleasant surprise that these expressions are productive, i.e.\ that we even obtain a result. But is it the right result? If we look at the last example above we can see that the vanilla sets we get for each of the three variables makes the three defining equations true:
-\begin{verbatim}
+\begin{code}
 ghci> let s1 = S.fromList [23,42]; s2 = S.fromList [23]; s3 = S.fromList [23]
 ghci> s1 == S.insert 42 s2
 True
@@ -253,7 +301,7 @@ ghci> s2 == S.insert 23 s3
 True
 ghci> s3 == S.delete 42 s1
 True
-\end{verbatim}
+\end{code}
 
 That is good, because that is how we want equations in a functional programming language to behave.
 
@@ -269,10 +317,10 @@ It will always do so, provided that
 \item that the definition of a \verb|x| does not depend on \verb|RS.get x|
 \end{itemize}
 Using \verb|RS.get| drops us in the world of vanilla set, and the magic disappears:
-\begin{verbatim}
+\begin{code}
 ghci> let s = RS.mk (RS.get (RS.insert 42 s)) in RS.get s
 fromList ^CInterrupted.
-\end{verbatim}
+\end{code}
 In this sense, \verb|RS.mk . RS.get| is not the identity function.
 
 \subsection{More than sets}
@@ -280,15 +328,15 @@ In this sense, \verb|RS.mk . RS.get| is not the identity function.
 Our library of recursively definable values does not only provide sets, but also other data types, in particular Booleans, as seen in \cref{fig:api}. Again, we have a copy of the usual operations (literals, conjunction and disjunction), and as before, we expect a (possibly recursive) expression of \verb|RBool| values to evaluate to the Boolean that solves these equation.
 
 What happens if both \verb|True| and \verb|False| would solve an equation, like in the following case?
-\begin{verbatim}
+\begin{code}
 ghci> let x = x RB.|| x in RB.get x
 False
-\end{verbatim}
+\end{code}
 We can see that \verb|RBool| considers \verb|False| as the least element, and for some use-cases that is the right choice. But for other use-cases, one would prefer \verb|True| over \verb|False|. Therefore, the library proves a separate module and data type \verb|RDualBool|, again with the full set of operations on Booleans, but this time returning \verb|True| if possible:
-\begin{verbatim}
+\begin{code}
 ghci> let x = x RDB.|| x in RDB.get x
 True
-\end{verbatim}
+\end{code}
 
 \subsection{Monotonicity}\label{sec:monotonicity}
 
@@ -308,9 +356,9 @@ This also explains why some functions from the underlying vanilla data type (suc
 \subsection{Termination}
 
 Another function from \verb|Data.Set| that we do not have in \verb|Data.Recursive.Set| is the function \verb|map :: Ord b => (a -> b) -> Set a -> Set b|. This may be a bit surprising, as this function is perfectly monotonic with regard to the subset relation. But it can cause other problems: Imagine we had it, and wrote
-\begin{verbatim}
+\begin{code}
 let s = RS.insert 0 (RS.map (+1) s) in RS.get s
-\end{verbatim}
+\end{code}
 Does this equation have a solution? Clearly the set \verb|s| needs to contain \verb|0|. But then it also needs to contain \verb|1|. And \verb|2|. And so on. So the solution would have to be the set of \emph{all} natural numbers, but that is not something that \verb|Data.Set|, being a data structure of \emph{finite} sets, can represent.
 
 So we cannot allow this function for \verb|RSet| if we want to guarantee a result for every finite recursive expression.
@@ -322,19 +370,19 @@ It would not be unreasonable, however, to add \verb|map| to the \verb|RSet| API,
 \subsection{The black hole}\label{sec:blackhole}
 
 We said that “all finite, possibly recursive expressions yield a result”. Unfortunately, that is not completely true: If a value of type \verb|RSet| is defined to be simply itself, with none of the \verb|RSet| operations involved, it will not work:
-\begin{verbatim}
+\begin{code}
 ghci> let s = s in RS.get s
 fromList ^CInterrupted.
-\end{verbatim}
+\end{code}
 And it’s not for lack of a solution: Clearly the empty set is the least solution to the equation \verb|s == s|.
 
 Because our library is but a library, despite the apparent magic inside (which we will uncover in \cref{sec:impl}), with a definition like \verb|let s = s|, it has no chance to insert its magic.
 
 The problem goes away as soon as any function from the API is involved in the definition, even if it is semantically the identity:
-\begin{verbatim}
+\begin{code}
 ghci> let x = RS.unions [x] in RS.get x
 fromList []
-\end{verbatim}
+\end{code}
 
 This is a little stumbling block when using this library. And while programmers are unlikely to write \verb|let x = x| directly, the effect can occur when tying the knot via a lazy data structure. In that case, the programmer is advised to insert a semantic identity function in the right position; the function \verb|RS.id :: Set a -> Set a| can be used for that purpose.
 A programming language that integrates these features first-class can take care of this automatically.
@@ -351,74 +399,81 @@ To set the stage, \cref{fig:analast} contains a Haskell Datatype for a typical a
 Variable names bound in \verb|Lam|, \verb|Let| and \verb|LetRec| shadow outer occurrences. (The resemblance to GHC's intermediate language Core \citep{secrets} is certainly not a coincidence.)
 
 \begin{figure}
-\begin{verbatim}
-type Var = String
-data Exp = Var Var | Lam Var Exp | App Exp Exp | Throw | Catch Exp
-         | Let Var Exp Exp | LetRec [(Var, Exp)] Exp
-\end{verbatim}
+\begin{code}
+type Var  =  String
+data Exp  =  Var Var | Lam Var Exp | App Exp Exp | Throw | Catch Exp
+          |  Let Var Exp Exp | LetRec [(Var, Exp)] Exp
+\end{code}
 \caption{An AST for a functional language with mutual recursion and exceptions}
 \label{fig:analast}
 \end{figure}
 
 Let us ignore \verb|LetRec| at first, and write that analysis as a simple traversal of the AST:
-\begin{verbatim}
+\begin{code}
 canThrow :: Exp -> Bool
-canThrow e = go M.empty e where
+canThrow e = go M.empty e
+  where
     go :: M.Map Var Bool -> Exp -> Bool
-    go env (Var v)          = env M.! v
-    go env Throw            = True
-    go env (Catch e)        = False
-    go env (Lam v e)        = go (M.insert v False env) e
-    go env (App e1 e2)      = go env e1 || go env e2
-    go env (Let v e1 e2)    = go env' e2 where
-        env_bind = M.singleton v (go env e1)
-        env' = M.union env_bind env
-\end{verbatim}
+    go env (Var v)        = env M.! v
+    go env Throw          = True
+    go env (Catch e)      = False
+    go env (Lam v e)      = go (M.insert v False env) e
+    go env (App e1 e2)    = go env e1 || go env e2
+    go env (Let v e1 e2)  = go env' e2
+      where
+        env_bind  = M.singleton v (go env e1)
+        env'      = M.union env_bind env
+\end{code}
 
 To determine whether evaluating a varible can throw, because of laziness, we have to carry around and
 environment of type \verb|M.Map Var Bool| where we remember whether the corresponding right-hand could throw. \verb|Throw| and \verb|Catch| certainly can resp.\ cannot throw. The analysis isn't higher order, so for lambdas we assume they can throw their body can throw, and for applications when either subexpression can throw. And finally for \verb|Let|, we extend the environment with the analysis result of the bound variable and descend.
 
 \subsection{Avoiding the black hole}
 So far, so standard. But what about \verb|LetRec|? Here, the analysis result of each right-hand side depends on the analysis results of all right-hand sides. We can try to simply do what we did in the \verb|Let| case:
-\begin{verbatim}
-    go env (LetRec binds e) = go env' e where
-        env_bind = M.fromList [ (v, go env' e) | (v,e) <- binds ]
-        env' = M.union env_bind env
-\end{verbatim}
+\begin{code}
+    go env (LetRec binds e) = go env' e
+      where
+        env_bind  = M.fromList [ (v, go env' e) | (v,e) <- binds ]
+        env'      = M.union env_bind env
+\end{code}
 Note that, crucially, we use the extended environment \verb|env'| not only for the body, but also for the right-hand sides.
 
 Alas, this does not work: As soon as we try to analyze an expression that uses recursion, we will fall into a black hole. The crux is that \verb|Bool| is not recursively definable, because the operations (here only disjunction, \verb+(||)+) is not lazy.
 
 But if we use \verb|RBool| instead of \verb|Bool|, it just works:
-\begin{verbatim}
+\begin{code}
 canThrow :: Exp -> Bool
-canThrow e = RB.get (go M.empty e) where
+canThrow e = RB.get (go M.empty e)
+  where
     go :: M.Map Var RBool -> Exp -> RBool
     go env (Var v)          = env M.! v
     go env Throw            = RB.true
     go env (Catch e)        = RB.false
     go env (Lam v e)        = go (M.insert v RB.false env) e
     go env (App e1 e2)      = go env e1 RB.|| go env e2
-    go env (Let v e1 e2)    = go env' e2 where
-        env_bind = M.singleton v (go env e1)
-        env' = M.union env_bind env
-    go env (LetRec binds e) = go env' e where
-        env_bind = M.fromList [ (v, RB.id (go env' e)) | (v,e) <- binds ]
-        env' = M.union env_bind env
-\end{verbatim}
+    go env (Let v e1 e2)    = go env' e2
+      where
+        env_bind  = M.singleton v (go env e1)
+        env'      = M.union env_bind env
+    go env (LetRec binds e) = go env' e
+      where
+        env_bind  = M.fromList [ (v, RB.id (go env' e)) | (v,e) <- binds ]
+        env'      = M.union env_bind env
+\end{code}
 All we did was to change the type of the local function \verb|go| to use \verb|RBool| instead of \verb|Bool|, used the corresponding operations (\verb|RB.true|, \verb|RB.false| and \verb+RB.||+) and  projected out to normal Booleans at the end (using \verb|RB.get|). A slight blemish is that we also inserted a call to \verb|RB.id| so that we don't fall over the input \verb|LetRec [("x", Var "x")]|, as explained in \cref{sec:blackhole}.
 
 \subsection{Results everywhere}
 
 To keep it simple for this paper the analysis does not update the AST (e.g. remove redundant calls to \verb|Catch|, or update analysis information stored in the variables as GHC would do), as the necessary plumbing would obscure our point. But it would work: we can use \verb|RB.get|  with in the function to get the analysis result for any subexpression and return a changed AST accordingly, e.g.
-\begin{verbatim}
+\begin{code}
     go :: M.Map Var RBool -> Exp -> (RBool, Exp)
     ...
-    go env (Catch e)        = (RB.false, new_e) where
-      (can_throw, e') = go env e
-      new_e | RB.get can_throw = Catch e'
-            | otherwise        = e'
-\end{verbatim}
+    go env (Catch e)        = (RB.false, new_e)
+      where
+        (can_throw, e') = go env e
+        new_e  |  RB.get can_throw  = Catch e'
+               |  otherwise         = e'
+\end{code}
 We'd have to be careful that the \verb|RBool| returned by \verb|go| does not depend on any decision made based on a boolean that was obtained with \verb|RB.get|. For such a fused analysis/transformation pass this is typically possible.
 %The ability to query each “node” as we go sets this approach apart from other idioms with a
 
@@ -468,22 +523,22 @@ The core idea behind the implementation can be explained in two simple steps: Fi
 \subsection{An imperative core}\label{sec:impcore}
 
 A typical \emph{imperative} API to describe and let solve a set of recursive equations typically provides functions to (1) register the variables, or \emph{cells}, (2) define their relationships and (3) finally read their values. To keep the example code small, we focus on just sets and insertion as the only operation, and could imagine an API like the following:
-\begin{verbatim}
+\begin{code}
 data Cell a
-newCell      :: IO (Cell a)
-cellIsInsert :: Ord a => Cell a -> a -> Cell a -> IO ()
-getCell      :: Cell a -> IO (Set a)
-\end{verbatim}
+newCell       ::  IO (Cell a)
+cellIsInsert  ::  Ord a => Cell a -> a -> Cell a -> IO ()
+getCell       ::  Cell a -> IO (Set a)
+\end{code}
 
 A typical use of this API, solving a mutually recursive set equation, could be
-\begin{verbatim}
+\begin{code}
 ghci> c1 <- newCell
 ghci> c2 <- newCell
 ghci> cellIsInsert c1 42 c2
 ghci> cellIsInsert c2 23 c1
 ghci> getCell c2
 fromList [23,42]
-\end{verbatim}
+\end{code}
 
 At this point, the actual implementation of this API is not that interesting. In a simple implementation a cell would consist of a current value (initialized to the empty set), and a list of cells depending on this value, and then the changes due to calls to \verb|cellIsInsert| are propagated through this network until no more changes need to be propagated. Of course, more sophisticated algorithms may lurk underneath this interface.
 
@@ -495,27 +550,28 @@ Clearly, \verb|insert| must somehow both create a new cell, and define its equat
 Furthermore, it has to be lazy in its second argument, else a recursive equation would immediately loop, so it somehow has to defer the call to \verb|cellIsInsert| a bit. This leads to the code seen in \cref{fig:wrap}, which we go through in detail:
 
 \begin{figure}
-\begin{verbatim}
+\raggedright
+\begin{code}
 data RSet a = RSet (Cell a) (IO ()) (IORef Bool)
 
 insert :: Ord a => a -> RSet a -> RSet a
 insert x r2 = unsafePerformIO $ do
-  c1 <- newCell
-  done <- newIORef False
-  let todo = do
-        is_done <- readIORef done
-        unless is_done $ do
-          writeIORef done True
-          let (RSet c2 todo2 _) = r2
-          cellIsInsert c1 x c2
-          todo2
-  return (RSet c1 todo done)
+   c1 <- newCell
+   done <- newIORef False
+   let todo = do
+            is_done <- readIORef done
+            unless is_done $ do
+                writeIORef done True
+                let (RSet c2 todo2 _) = r2
+                cellIsInsert c1 x c2
+                todo2
+   return (RSet c1 todo done)
 
 get :: RSet a -> Set a
 get (RSet c todo _) = unsafePerformIO $ do
-  todo
-  getCell c
-\end{verbatim}
+   todo
+   getCell c
+\end{code}
 \caption{Wrapping an imperative propagator library in a pure way}\label{fig:wrap}
 \end{figure}
 
@@ -557,10 +613,10 @@ Another, maybe subtle, problem with our pure wrapping of an imperative propagato
 Consider the \verb|insert| function. With \verb|rs2 = RS.insert x rs1| we create a new mutable cell for \verb|rs2|, and tell the mutable cell in \verb|rs1| to notify the other cell of any changes. This means that now somewhere in \verb|rs1| there is a reference to \verb|rs2| -- exactly the other way around from what one would expect from the code. This prevents resources allocated for \verb|rs2| from beeing freed while \verb|rs1| is alive.
 
 This causes space leaks, where allocated resources are kept alive longer than expected or needed. As an extreme example, consider now this interaction
-\begin{verbatim}
+\begin{code}
 ghci> RS.get (RS.insert 42 RS.empty)
 fromList [42]
-\end{verbatim}
+\end{code}
 The call to \verb|insert| allocates a new cell and registers it with the cell in \verb|RS.empty|. But \verb|RS.empty| is a \emph{static} value, and will never be garbage collected!
 
 To fix this, we notice that once we are done calculating a value (either because we query it using \verb|get|, or because it is needed in the calculation of such a value), it will never change any further. So our propagator API allows “freezing“ a cell and dropping the connection to the depenent cells, and our pure wrapper freezes cells after the value is computed.
@@ -594,12 +650,12 @@ That the space leak issue of the naive implementation described in \cref{sec:spa
 \subsection{Evaluation order independence.}
 
 Even more, it should not matter in which order the various subexpressions are evaluated. In
-\begin{verbatim}
-ghci> let s1 = RS.insert 42 s2
-ghci|     s2 = RS.insert 23 s3
-ghci|     s3 = RS.delete 42 s1
+\begin{code}
+ghci> let  s1 = RS.insert 42 s2
+ghci|      s2 = RS.insert 23 s3
+ghci|      s3 = RS.delete 42 s1
 ghci| in (RS.get s1, RS.get s2, RS.get s3)
-\end{verbatim}
+\end{code}
 we need to get the same result, no matter whether we evaluate the first component of the resulting tuple before the second, or the other way around, or even all in parallel in separate threads.
 
 Achieving this in our library required some care. Because we wrap our computation in \verb|unsafePerformIO|, we have to expect any of them to happen at almost any time. Simple graph traversal methods, which simply mark a node as “done” before visiting its successors, easily go wrong when a second evaluation hits such a supposedly “done” node, while the first traversal is still processing the graph. Getting this to the point where it seems to be working was non-trivial, as mentioned in \cref{sec:thread}.
@@ -614,27 +670,27 @@ So is our library still referential transparent? By virtue of always calculating
 
 This restriction to fixpoints, i.e.\ to solutions of a set of equations, puts a clear limit on the kind of observations we allow the programmer to make about the recursive equations. For example, it would not be pure if the programmer could obtain the number of equations. This rules out using our approach for use-cases where the actual graph structure of the equations (and not just a solution of the equations) is of interest, e.g.\ generating circuit descriptions \cite{observable-sharing}.
 
-\subsection{Program equivalences and lambda lifting}
+\subsection{Program equivalences and lambda lifting}\label{sec:sat}
 
 Referential transparency is a crucial ingredient to equational reasoning: rewriting the code according to a set of rules, while preserving its meaning. Replacing \verb|x| with its definition \verb|e| is called unfolding, or \textdelta-reduction, but there are further program transformations that we expect to preserve semantics. They may be applied by optimizing compiler, used in program verification or simply by a programmer trying to understand the meaning of the code.
 
 Ideally, all program transformations that are meaning-preserving in pure Haskell ould still meaning-preserving in the presence of our library. Unfortuately, this is not the case: Lambda lifting can turn terminating programs into non-terminating ones.
 
 In general in Haskell, if we have a recursive value definition involving an expression \verb|e|, we it is ok to turn that into a recursive function definition abstracting over that expression: We can go from
-\begin{verbatim}
+\begin{code}
 let x = ... x ... e ... in x
-\end{verbatim}
+\end{code}
 to
-\begin{verbatim}
+\begin{code}
 let x y = ... (x y) ... y ... in x e
-\end{verbatim}
+\end{code}
 without changing the program's meaning. With our library, this can now make the difference between termination and non-termination:
-\begin{verbatim}
+\begin{code}
 ghci> let rs = RS.insert 42 rs in RS.get rs
 fromList [42]
 ghci> let rs y = RS.insert y (rs y) in RS.get (rs 42)
 fromList ^CInterrupted.
-\end{verbatim}
+\end{code}
 
 This is not a simple infelicity of our implementation, but a fundamental limitation: In the original program, our library can get its (magic, \verb|unsafePerformIO|-powered) hands on a \emph{finite} graph of connected values. In the transformed program there is now a recursive function that endlessly creates new values, and our library can never see a complete set of equations. It seems that no (reasonable) implementation of the interface in \cref{fig:api} can solve this problem. By this reasonsing we deduce that a pure implementation of that interface indeed does not exist.
 
@@ -725,15 +781,15 @@ Monotonicity is crucial for the existence and uniqueness of a solution (\cref{se
 \section{The reflexivie transitive closure, pedestrian-style}\label{sec:imp}
 
 In the introduction we mentioned that without the data structure presented in this paper, a programmer likely has to write their reflexive-transitive-closure code with an explicit loop (a tail-recursive \verb|go| function), keeping track of seen nodes:
-\begin{verbatim}
+\begin{code}
 transitiveImp :: Graph -> Graph
 transitiveImp g = M.fromList [ (v, S.toList (go S.empty [v])) | v <- M.keys g ]
   where
     go :: S.Set Int -> [Int] -> S.Set Int
     go seen [] = seen
-    go seen (v:vs) | v `S.member` seen = go seen vs
-                   | otherwise         = go (S.insert v seen) (g M.! v ++ vs)
-\end{verbatim}
+    go seen (v:vs)  |  v `S.member` seen  =  go seen vs
+                    |  otherwise          =  go (S.insert v seen) (g M.! v ++ vs)
+\end{code}
 
 
 \end{document}
