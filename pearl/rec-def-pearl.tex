@@ -3,6 +3,7 @@
 
 \usepackage[capitalise,nameinlink,noabbrev]{cleveref}
 \usepackage{textgreek}
+\usepackage{afterpage}
 
 % LHS2TEx setup
 
@@ -282,7 +283,8 @@ In the introduction we have used a data type |RSet| with an API that resembles t
 
 \subsection{Just an isomorphic copy?}
 
-\begin{figure}
+\afterpage{\clearpage}
+\begin{figure}[p]
 \begin{code}
 module Data.Recursive.Set where       -- imported as RS here
   data RSet a
