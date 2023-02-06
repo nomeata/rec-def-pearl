@@ -1,7 +1,7 @@
 \PassOptionsToPackage{dvipsnames}{xcolor}
 \documentclass[manuscript,anonymous,screen,acmsmall]{acmart}
 
-\usepackage[capitalise]{cleveref}
+\usepackage[capitalise,nameinlink,noabbrev]{cleveref}
 \usepackage{textgreek}
 
 % LHS2TEx setup
@@ -12,7 +12,6 @@
 %format IND = "~~"
 %format -> = "–>"
 %format <- = "<–"
-%format :: = "::"
 %format (QUOTETYPE(x)) = "\textquotesingle\textquotesingle " x
 %format (QUOTEVAL(x)) = "\textquotesingle " x
 %format (PRAGMA(x)) = "\{−\# " x " \#−\}"
@@ -24,6 +23,7 @@
 \renewcommand{\hsindent}[1]{{\quad\strut}}
 %subst newline          = "\\[-0.3ex]%'n"
 \setlength{\blanklineskip}{0.8ex}
+\setlength{\mathindent}{2\parindent}
 
 % new keywords
 %format qualified = "\StyleKW{qualified}"
@@ -35,6 +35,7 @@
 %format RB                      = "\StyleMod{RB}"
 %format RDB                     = "\StyleMod{RDB}"
 %format Data.Set                = "\StyleMod{Data.Set}"
+%format Data.Map                = "\StyleMod{Data.Map}"
 %format Data.Recursive.Set      = "\StyleMod{Data.Recursive.Set}"
 %format Data.Recursive.Map      = "\StyleMod{Data.Recursive.Map}"
 %format Data.Recursive.Bool     = "\StyleMod{Data.Recursive.Bool}"
@@ -76,6 +77,7 @@
 %format LetRec = "\StyleConstr{LetRec}"
 %format True   = "\StyleConstr{True}"
 %format False  = "\StyleConstr{False}"
+%format MkRSet = "\StyleConstr{MkRSet}"
 
 \definecolor[named]{Set3a}{cmyk}{0.60,0.00,0.30,0.00}
 \definecolor[named]{Set3b}{cmyk}{0.00,0.45,0.50,0.00}
@@ -187,7 +189,7 @@ This is often called “knot-tying”, because a value (here |fibs|) has a defin
 
 \subsection{Tying the knot with graphs}
 
-A maybe more practical example is the following calculation of the reflexive transitive closure of a graph, i.e.\ for each node the set of nodes reachable from it. Let's represent a graph as a map from vertices (|Int|) to lists of adjacent vertices:
+A maybe more practical example is the following calculation of the reflexive transitive closure of a graph, i.e.\ for each vertex the set of vertices reachable from it. Let's represent a graph as a map from vertices (of type |Int|) to lists of adjacent vertices, which we assume to be in the domain of the map (This keeps the examples concise, as then the lookup operator |M.!| won't fail):
 \begin{code}
 import qualified Data.Set as S
 import qualified Data.Map as M
@@ -196,58 +198,58 @@ type Graph = M.Map Int [Int]
 
 Then the reflexive transitive closure can be very elegantly expressed by knot-tying a map from vertices to the set of reachable vertices:
 \begin{code}
-transitive1 :: Graph -> Graph
-transitive1 g = M.map S.toList sets
+rTrans1 :: Graph -> Graph
+rTrans1 g = M.map S.toList sets
   where
-    sets :: M.Map Int (S.Set Int)
-    sets = M.mapWithKey (\v vs -> S.insert v (S.unions [ sets M.! v' | v' <- vs ])) g
+    reaches :: M.Map Int (S.Set Int)
+    reaches = M.mapWithKey (\v vs -> S.insert v (S.unions [ reaches M.! v' | v' <- vs ])) g
 \end{code}
-This code is quite close to the prosaic specification “the reachable nodes from a node |v| are |v| itself, plus all the nodes reachable from its successors”; hence we can call this code declarative.
+This code is remarkably close to the prosaic specification “the reachable vertices from a vertex |v| are |v| itself, plus all the vertices reachable from its successors”; hence we can call this code declarative.
 
-Note how the definition of |sets| refers to itself -- “we are tying a knot”.
+Note how the definition of |reaches| refers to itself -- we are “tying a knot”.
 
 \subsection{It works, until it doesn't}
 
 This is the kind of code we like to impress our strict-language-using friend with, and it works quite nicely:
 \begin{code}
-ghci> transitive1 (M.fromList [(1,[3]),(2,[1,3]),(3,[])])
+ghci> rTrans1 (M.fromList [(1,[3]),(2,[1,3]),(3,[])])
 fromList [(1,[1,3]),(2,[1,2,3]),(3,[3])]
 \end{code}
 %
 At least until our strict-language-using friend challenges us to add just one small edge to the graph:
 \begin{code}
-ghci> transitive1 (M.fromList [(1,[2,3]),(2,[1,3]),(3,[])])
+ghci> rTrans1 (M.fromList [(1,[2,3]),(2,[1,3]),(3,[])])
 fromList [(1,fromList ^CInterrupted.
 \end{code}
 Why does it fail? Because the graph has a \emph{cycle} ($1 \to 2 \to 1$), and that makes our code get lost in an infinite loop, until we abort the program.
 
 This is quite disappointing, because in order to handle recursive graphs as input, we now have to implement this in a much more tedious way, maybe with an explicit loop, keeping track of the set of seen vertices (see \cref{sec:imp} if you really want to see it, but the point is that you shoudn’t have to). It works, and most of us have written that idiom once (or many times), but we cannot impress our friend with that.
 
-But it seems we should: The declarative specification, from which we have derived |transitive1|, holds for recursive graphs as well, so it does not seem that unreasonable to expect our code to handle recursive graphs as well. Where does it go wrong? The way we use the lazy map data structure is fine; it helps us to express the set of reachable nodes by way of other such sets.
-The problem is that the set data structure, with its operations |insert| and |union|, is not lazy enough: |union| needs to know the value of its arguments before it can produce something useful, and thus cannot be used recursively.
+But it seems we should: The declarative specification, from which we have derived |rTrans1|, holds for recursive graphs as well, so it does not seem that unreasonable to expect our code to handle recursive graphs as well. Where does it go wrong? The way we use the lazy map data structure is fine; it helps us to express the set of reachable vertices by way of other such sets.
+The problem is that the set data structure, with its operations |insert| and |union|, is not lazy enough: |union| needs to know the value of its arguments before it can produce something useful, and thus cannot be used in a recursive, knot-tying way.
 
 \subsection{We need better sets!}
 
-In this paper we present a data structure for sets, called |RSet|, where such recursive expressions do work! Its API is almost the same as that of |Data.Set|. In particular, it consists of plain \emph{pure} functions -- no monads necessary. The fragment relevant for our example is:
+In this paper we present a data structure for sets, called |RSet|, where such recursive expressions do work! Its API is almost the same as that of |Set| from |Data.Set|. In particular, it consists of plain \emph{pure} functions -- no monads necessary. The fragment relevant for our example is:
 \begin{code}
 insert  :: Ord a =>  a -> RSet a  -> RSet a
 unions  :: Ord a =>  [RSet a]     -> RSet a
 get     ::           RSet a       -> Set a
 \end{code}
-In addition to the two operations used by |transitive1|, with type signatures mirroring those of |Data.Set| exactly, we find the function |get| to convert our |RSet| to a normal |Set|.
+In addition to the two operations used by |rTrans1|, with type signatures mirroring those of |Data.Set| exactly, we find the function |get| to convert our |RSet| to a normal |Set|.
 
-We can use this data structure without changing the structure of our code; we just swap out the operations (imported qualifiedly as |RS|) and convert back to conventional sets in the end:
+We can use this data structure without changing the structure of our code; we just swap out the operations (imported |qualified as RS|) and convert back to conventional sets in the end:
 \begin{code}
-transitive2 :: Graph -> Graph
-transitive2 g = M.map (S.toList . RS.get) sets
+rTrans2 :: Graph -> Graph
+rTrans2 g = M.map (S.toList . RS.get) reaches
   where
-    sets :: M.Map Int (RS.RSet Int)
-    sets = M.mapWithKey (\v vs -> RS.insert v (RS.unions [ sets M.! v' | v' <- vs ])) g
+    reaches :: M.Map Int (RS.RSet Int)
+    reaches = M.mapWithKey (\v vs -> RS.insert v (RS.unions [ reaches M.! v' | v' <- vs ])) g
 \end{code}
 
 And indeed, now we \emph{can} handle recursive graphs, and get the correct result:
 \begin{code}
-ghci> transitive2 (M.fromList [(1,[2,3]),(2,[1,3]),(3,[])])
+ghci> rTrans2 (M.fromList [(1,[2,3]),(2,[1,3]),(3,[])])
 fromList [(1,[1,2,3]),(2,[1,2,3]),(3,[3])]
 \end{code}
 
@@ -270,7 +272,7 @@ The main contributions of this paper are:
 \end{itemize}
 
 \begin{acks}
-We like to thanks Sebastian Graf for their helpful comments.
+We like to thanks Sebastian Graf and Claudio Russo for their helpful comments.
 \end{acks}
 
 \section{Exploration}\label{sec:exploration}
@@ -278,11 +280,11 @@ We like to thanks Sebastian Graf for their helpful comments.
 In the introduction we have used a data type |RSet| with an API that resembles that of the |Set| data structure in Haskell's |Data.Set| library. Let us explore this data structure some more from the user's point of view, to get a better understanding of how it is different from the vanilla |Set|, and to whet the appetite for the look at its implementation in a subsequent section.
 \Cref{fig:api} gives a comprehensive overview of the API.
 
-\subsection{Just a isomorphic copy?}
+\subsection{Just an isomorphic copy?}
 
 \begin{figure}
 \begin{code}
-module Data.Recursive.Set where  -- imported as RS here
+module Data.Recursive.Set where       -- imported as RS here
   data RSet a
   get           ::           RSet a ->            Set a
   mk            ::           Set a ->             RSet a
@@ -298,12 +300,12 @@ module Data.Recursive.Set where  -- imported as RS here
   when          ::           RBool -> RSet a ->   RSet a
   id            ::           RSet a ->            RSet a
 
-module Data.Recursive.Bool where  -- imported as RB here
+module Data.Recursive.Bool where      -- imported as RB here
   data RBool
   get          :: RBool ->           Bool
   mk           :: Bool ->            RBool
   true, false  ::                    RBool
-  (&&),(||)    :: RBool -> RBool ->  RBool
+  (&&), (||)   :: RBool -> RBool ->  RBool
   and, or      :: [RBool] ->         RBool
   not          :: RBool ->           RDualBool
   id           :: RBool ->           RBool
@@ -313,7 +315,7 @@ module Data.Recursive.DualBool where  -- imported as RDB here
   get          ::  RDualBool ->               Bool
   mk           ::  Bool ->                    RDualBool
   true, false  ::                             RDualBool
-  (&&),(||)    ::  RDualBool -> RDualBool ->  RDualBool
+  (&&), (||)   ::  RDualBool -> RDualBool ->  RDualBool
   and, or      ::  [RDualBool] ->             RDualBool
   not          ::  RDualBool ->               RBool
   id           ::  RDualBool ->               RDualBool
@@ -376,14 +378,14 @@ That is good, because that is how we want equations in a functional programming 
 
 At this point you might interject that these are not the only possible solutions to this system of equations. Returning to the smaller example of |let s = RS.insert 42 s|, we find that our result |S.fromList [42]| indeed solves the equation |s == S.insert 42 s|, but so does |S.fromList [42,43]|. Still, we would not consider that a “good” solution, and would be surprised if we'd get that.
 %
-That is because we expect the result to be \textbf{least fixpoint}; the solution that is, among all possible solutions, the smallest with regard to a particular partial order.
+That is because we expect the result to be the \textbf{least fixpoint}; the solution that is, among all possible solutions, the smallest with regard to a particular partial order.
 
 In the context of sets the natural order is subset inclusion. Therefore, a possibly recursive expression of |RSet| values will evaluate to the smallest sets solving the definitional equations.
 
 It will always do so, provided that
 \begin{itemize}
 \item only finitely many |RSet| values are involved and
-\item that the definition of a |x| does not depend on |RS.get x|
+\item no definition of a |rs :: RSet| depends on the expression |RS.get rs|.
 \end{itemize}
 Using |RS.get| drops us in the world of vanilla set, and the magic disappears:
 \begin{code}
@@ -409,7 +411,7 @@ True
 
 \subsection{Monotonicity}\label{sec:monotonicity}
 
-These data types -- |RSet|, |RBool|, |RDualBool| are not silos, and you will find among the functions in \cref{fig:api} some that connect these types -- negation on Booleans, member checks on sets, the emptiness check on sets, and the function |when|, which guards the values of a set on a boolean.
+These data types -- |RSet|, |RBool|, |RDualBool| -- are not silos, and you will find among the functions in \cref{fig:api} some that connect these types: negation on Booleans, member checks on sets, the emptiness check on sets, and the function |when|, which guards a set depending on a boolean.
 This means that even recursive expressions involving multiple of these types will produce a result.
 
 So why does |RS.member| return a |RBool|, but |null| returns a |RDualBool|? And why is there no function |not :: RBool -> RBool|? It is because all functions involved here must be \emph{monotonic}: smaller arguments must lead to smaller results. And because the empty set is smaller than non-empty sets, |RS.member| must return a |RBool| (where |False| is smaller than |True|), but |null| must go to |RDualBool| (where |True| is smaller than |False|).
@@ -418,7 +420,7 @@ If we did not pay attention to this while defining the API, and added non-monoto
 |let x = not x|,
 and we would like to statically rule that out.
 
-The underlying bit of theory is the theorem that a monotone function $f : A \to A$ on a partially ordered set $A$ with least element $\bot \in A$ and finite height has a unique least fixed point. This is well-known (e.g.\ \citet{lazyleast}), and if the sentence means something to you, you probably already saw it coming. And if it doesn't, it does not matter for reading this paper.
+The underlying bit of theory is the theorem that a monotone function $f : A \to A$ on a partially ordered set $A$ with least element $\bot \in A$ and finite height has a unique least fixed point. This is well-known (e.g.\ see \citep{lazyleast}), and if the sentence means something to you, you probably already saw it coming. And if it doesn't, it does not matter for reading this paper.
 
 This also explains why some functions from the underlying vanilla data type (such as |Data.Set|'s |difference|) are not available, as they are not monotonic.
 
@@ -434,7 +436,7 @@ So we cannot allow this function for |RSet| if we want to guarantee a result for
 
 For the theoretically inclined, this plays into the “$A$ has finite height” requirement in the theorem above. You might be irked that the type |Set a|, ordered by subset inclusion, does not actually have finite height (if |a| is not finite). With the current API (without functions like |map|) for every \emph{finite} |RSet| expression there are only finite many possible members, and thus the relevant “subtype” has finite height, and all is well again.
 
-It would not be unreasonable, however, to add |map| to the |RSet| API, as it may be quite useful for some applications, and maybe in these applications the equation have a finite solution just fine. If we'd do that, we could no longer \emph{guarantee} termination for all possible expressions (as shown by the example above), but if expression yields a result, it will be the least fixed point of the defining equation. One can argue that this would be fine for a Haskell library, as Haskell programmers are used to programming around non-termnation anyways.
+It would not be unreasonable, however, to add |map| to the |RSet| API, as it may be quite useful for some applications, and maybe in these applications the equation have a finite solution just fine. If we'd do that, we could no longer \emph{guarantee} termination for all possible expressions (as shown by the example above), but if expression yields a result, it will be the least fixed point of the defining equation. One can argue that this would be fine for a Haskell library, as Haskell programmers are used to programming around non-termination anyways.
 
 \subsection{The black hole}\label{sec:blackhole}
 
@@ -468,6 +470,8 @@ To set the stage, \cref{fig:analast} contains a Haskell Datatype for a typical a
 Variable names bound in |Lam|, |Let| and |LetRec| shadow outer occurrences. (The resemblance to GHC's intermediate language Core \citep{secrets} is certainly not a coincidence.)
 
 \begin{figure}
+\setlength{\abovedisplayskip}{0pt}%
+\setlength{\belowdisplayskip}{0pt}%
 \begin{code}
 type V    =  String
 data Exp  =  Var V | Lam V Exp | App Exp Exp | Throw | Catch Exp
@@ -478,6 +482,7 @@ data Exp  =  Var V | Lam V Exp | App Exp Exp | Throw | Catch Exp
 \end{figure}
 
 Let us ignore |LetRec| at first, and write that analysis as a simple traversal of the AST:
+\savecolumns
 \begin{code}
 canThrow :: Exp -> Bool
 canThrow e = go M.empty e
@@ -494,11 +499,12 @@ canThrow e = go M.empty e
         env'      = M.union env_bind env
 \end{code}
 
-To determine whether evaluating a varible can throw, because of laziness, we have to carry around and
-environment of type |M.Map V Bool| where we remember whether the corresponding right-hand could throw. |Throw| and |Catch| certainly can resp.\ cannot throw. The analysis isn't higher order, so for lambdas we assume they can throw their body can throw, and for applications when either subexpression can throw. And finally for |Let|, we extend the environment with the analysis result of the bound variable and descend.
+To determine whether evaluating a varible can throw, because of laziness, we have to carry around an
+environment of type |M.Map V Bool| where we remember whether the corresponding right-hand could throw. |Throw| and |Catch| certainly can resp.\ cannot throw. The analysis isn't higher order, so for lambdas we assume they can throw if their body can throw, and for applications when either subexpression can throw. And finally for |Let|, we extend the environment with the analysis result of the bound variable and descend.
 
 \subsection{Avoiding the black hole}
 So far, so standard. But what about |LetRec|? Here, the analysis result of each right-hand side depends on the analysis results of all right-hand sides. We can try to simply do what we did in the |Let| case:
+\restorecolumns
 \begin{code}
     go env (LetRec binds e) = go env' e
       where
@@ -507,9 +513,10 @@ So far, so standard. But what about |LetRec|? Here, the analysis result of each 
 \end{code}
 Note that, crucially, we use the extended environment |env'| not only for the body, but also for the right-hand sides.
 
-Alas, this does not work: As soon as we try to analyze an expression that uses recursion, we will fall into a black hole. The crux is that |Bool| is not recursively definable, because the operations (here only disjunction, |(||||)|) is not lazy.
+Alas, this does not work: As soon as we try to analyze an expression that uses recursion, we will fall into a black hole. The crux is that |Bool| is not recursively definable, because its operations (here only disjunction, |(||||)|) are not lazy.
 
 But if we use |RBool| instead of |Bool|, it just works:
+\restorecolumns
 \begin{code}
 canThrow :: Exp -> Bool
 canThrow e = RB.get (go M.empty e)
@@ -529,11 +536,12 @@ canThrow e = RB.get (go M.empty e)
         env_bind  = M.fromList [ (v, RB.id (go env' e)) | (v,e) <- binds ]
         env'      = M.union env_bind env
 \end{code}
-All we did was to change the type of the local function |go| to use |RBool| instead of |Bool|, used the corresponding operations (|RB.true|, |RB.false| and |RB.|||||) and  projected out to normal Booleans at the end (using |RB.get|). A slight blemish is that we also inserted a call to |RB.id| so that we don't fall over the input |LetRec [("x", Var "x")]|, as explained in \cref{sec:blackhole}.
+All we did was to change the type of the local function |go| to use |RBool| instead of |Bool|, used the corresponding operations (|RB.true|, |RB.false| and |RB.|||||) and  projected out to normal Booleans at the end (using |RB.get|). A slight blemish is that we also inserted a call to |RB.id| to not fall over the input |LetRec [("x", Var "x")]|, as explained in \cref{sec:blackhole}.
 
 \subsection{Results everywhere}
 
-To keep it simple for this paper the analysis does not update the AST (e.g. remove redundant calls to |Catch|, or update analysis information stored in the variables as GHC would do), as the necessary plumbing would obscure our point. But it would work: we can use |RB.get|  with in the function to get the analysis result for any subexpression and return a changed AST accordingly, e.g.
+To keep it simple for this paper the analysis does not update the AST (e.g. remove redundant calls to |Catch|, or update analysis information stored in the variables as GHC would do), as the necessary plumbing would obscure our point. But it would work: we can use |RB.get| within the function to get the analysis result for any subexpression and return a changed AST accordingly, e.g.
+\restorecolumns
 \begin{code}
     go :: M.Map V RBool -> Exp -> (RBool, Exp)
     ...
@@ -544,14 +552,14 @@ To keep it simple for this paper the analysis does not update the AST (e.g. remo
                |  otherwise         = e'
 \end{code}
 We'd have to be careful that the |RBool| returned by |go| does not depend on any decision made based on a boolean that was obtained with |RB.get|. For such a fused analysis/transformation pass this is typically possible.
-%The ability to query each “node” as we go sets this approach apart from other idioms with a
+%The ability to query each “vertex” as we go sets this approach apart from other idioms with a
 
 \subsection{Alternatives}
 What would we do if we did not have |RBool| at our disposal? Here are some common options
 \begin{itemize}
 \item We can perform an explicit fixpoint analysis in the |LetRec| case: Initialize the |env_bind| with all variables mapped to |False|, descend, check if now any analysis result has changed, and if so, re-analyze all of them, until we found a solution.
 
-Maybe we can be more clever and only re-analyze some of them.
+Maybe we can be more clever and re-analyze only some of them.
 
 Maybe some of that logic can be extracted into a suitable fixpoint operator.
 
@@ -565,7 +573,7 @@ GHC does this, as explained in \citet[Section 6.6]{modular}, but again at the co
 
 \item Another way to approach the problem is to gather the full data flow problem from the whole AST, solve it globally (thus also avoiding the problem mentioned in the previous bullet), and then distributing the analysis again to where we need it. This is reminiscent of how a constrained-based type inference algorithm works.
 
-It is a satisfying thought that this approach frees the solving algorithm from having to follow the syntactic nesting structure of the program, and that the repeated passes of the fixpoint iteratation do not have to re-analyze the AST over and over, and instead only sees the pure data-flow equations.
+It is a satisfying thought that this approach frees the solving algorithm from having to follow the syntactic nesting structure of the program, and that the repeated passes of the fixpoint iteratation do not have to re-analyze the AST over and over, and instead only see the pure data-flow equations.
 
 There are, however, petty practical issues with this approach (representing the equations as data, uniquely nameing the cells, the separate passes for collecting the equations and using the results).
 At this point, one is likely going to hide this bookkeeping in a suitable monad, which can recover some of the lost elegance, but if the code could otherwise be written as pure functions, that is still quite a price to pay.%
@@ -591,11 +599,11 @@ The core idea behind the implementation can be explained in two simple steps: Fi
 
 \subsection{An imperative core}\label{sec:impcore}
 
-A typical \emph{imperative} API to describe and let solve a set of recursive equations typically provides functions to (1) register the variables, or \emph{cells}, (2) define their relationships and (3) finally read their values. To keep the example code small, we focus on just sets and insertion as the only operation, and could imagine an API like the following:
+A typical \emph{imperative} API to describe and solve a set of recursive equations provides functions to (1) register the variables, or \emph{cells}, (2) define their relationships and (3) finally read their values. To keep the example code small, we focus on just sets and insertion as the only operation, and could imagine an API like the following:
 \begin{code}
 data Cell a
 newCell       ::  IO (Cell a)
-cellIsInsert  ::  Ord a => Cell a -> a -> Cell a -> IO ()
+defCellInsert  ::  Ord a => Cell a -> a -> Cell a -> IO ()
 getCell       ::  Cell a -> IO (Set a)
 \end{code}
 
@@ -603,51 +611,53 @@ A typical use of this API, solving a mutually recursive set equation, could be
 \begin{code}
 ghci> c1 <- newCell
 ghci> c2 <- newCell
-ghci> cellIsInsert c1 42 c2
-ghci> cellIsInsert c2 23 c1
+ghci> defCellInsert c1 42 c2
+ghci> defCellInsert c2 23 c1
 ghci> getCell c2
 fromList [23,42]
 \end{code}
 
-At this point, the actual implementation of this API is not that interesting. In a simple implementation a cell would consist of a current value (initialized to the empty set), and a list of cells depending on this value, and then the changes due to calls to |cellIsInsert| are propagated through this network until no more changes need to be propagated. Of course, more sophisticated algorithms may lurk underneath this interface.
+At this point, the actual implementation of this API is not that interesting. In a simple implementation a cell would consist of a current value (initialized to the empty set), and a list of cells depending on this value, and then the changes due to calls to |defCellInsert| are propagated through this network until no more changes need to be propagated. Of course, more sophisticated algorithms may lurk underneath this interface.
 
 \subsection{The pure wrapping}
 
 The more interesting question is how to get from the imperative |Cell| code to the pure |RSet| API, with |insert :: a -> RSet a -> RSet a| and |get :: RSet a -> Set a|?
 
 Clearly, |insert| must somehow both create a new cell, and define its equation.
-Furthermore, it has to be lazy in its second argument, else a recursive equation would immediately loop, so it somehow has to defer the call to |cellIsInsert| a bit. This leads to the code seen in \cref{fig:wrap}, which we go through in detail:
+Furthermore, it has to be lazy in its second argument, else a recursive equation would immediately loop, so it somehow has to defer the call to |defCellInsert| a bit. This leads to the code seen in \cref{fig:wrap}, which we go through in detail:
 
-\begin{figure}
-\raggedright
+\begin{figure}%
+\setlength{\abovedisplayskip}{0pt}%
+\setlength{\belowdisplayskip}{0pt}%
+\raggedright%
 \begin{code}
-data RSet a = RSet (Cell a) (IO ()) (IORef Bool)
+data RSet a = MkRSet (Cell a) (IO ()) (IORef Bool)
 
 insert :: Ord a => a -> RSet a -> RSet a
 insert x r2 = unsafePerformIO $ do
    c1 <- newCell
    done <- newIORef False
-   let todo = do
-            is_done <- readIORef done
-            unless is_done $ do
-                writeIORef done True
-                let (RSet c2 todo2 _) = r2
-                cellIsInsert c1 x c2
-                todo2
-   return (RSet c1 todo done)
+   let  todo = do
+             is_done <- readIORef done
+             unless is_done $ do
+                 writeIORef done True
+                 let (MkRSet c2 todo2 _) = r2
+                 defCellInsert c1 x c2
+                 todo2
+   return (MkRSet c1 todo done)
 
 get :: RSet a -> Set a
-get (RSet c todo _) = unsafePerformIO $ do
+get (MkRSet c todo _) = unsafePerformIO $ do
    todo
    getCell c
-\end{code}
+\end{code}%
 \caption{Wrapping an imperative propagator library in a pure way}\label{fig:wrap}
 \end{figure}
 
 A value of type |RSet| consists of three fields
 \begin{itemize}
 \item The |Cell a| backing the value we are defining.
-\item An |IO ()| action, deferred until the the value is actually needed (directly due to |get|, or indirectly).
+\item An |IO ()| action, deferred until the value is actually needed (directly due to |get|, or indirectly).
 \item A flag to remember if that deferred action has run already.
 \end{itemize}
 
@@ -661,7 +671,9 @@ This code describes the essence of our idea, and easily generalizes to the other
 
 \subsubsection{Reentrancy and thread safety.}\label{sec:thread}
 
-The |done| flag is used to ensure that the |todo| action is run exactly once. But if |get| is invoked concurrently, the code above is obviously racy. Even worse: Because this is run from |unsafePerformIO|, even in a single-threaded environment we have to worry about reentrancy. In our library we address this with careful use of |MVar| \cite{concurrent}, and hide this cleanly behind a small abstraction for “possibly recursive |IO|-thunks” in the |System.IO.RecThunk| API.
+The |done| flag is used to ensure that the |todo| action is run exactly once. But if |get| is invoked concurrently, the code above is obviously racy. Even worse: Because this is run from |unsafePerformIO|, even in a single-threaded environment we have to worry about reentrancy, as forcing any unevaluated user-provided expression could kick off execution of another call to |get|.
+
+In our library we address this with careful use of |MVar| \cite{concurrent}, and hide this cleanly behind a small abstraction for “possibly recursive |IO|-thunks” in the |System.IO.RecThunk| API.
 
 The dejafu test library \citep{dejafu}, which can exhaustively explore all possible interleavings of concurrent code, has proven invaluable: more than once we thought we had finally achieved thread-safety, only to be told that we were still far off.
 
@@ -693,7 +705,7 @@ To fix this, we notice that once we are done calculating a value (either because
 \section{Is this still Haskell?}\label{sec:pure}
 
 The library presents itself with a innocent looking, pure and simple interface (\cref{fig:api}), but the implementation is full of side-effects (as seen in \cref{sec:impl}).
-Does this leak, or is does programming with it still feel like programming Haskell?
+Does this leak, or does programming with it still feel like programming Haskell?
 Is this really pure? Did we create a beautiful abstraction, or are the types a lie?
 
 \subsection{What does purity even mean?}
@@ -704,7 +716,7 @@ and see whether they still hold in the presence of our library
 
 \subsection{Type safety}
 
-Certainly purity ought to imply memory and type safety: What we get out of |RS.get| should really be a valid |Set|, and not some corrupted memory.
+Purity probably means little without memory and type safety, and we certainly want to preserve that property: What we get out of |RS.get| should really be a valid |Set|, and not some corrupted memory.
 
 It is not hard to break type safety with |unsafePerformIO|, especially when there are mutable references and polymorphism around. Nevertheless, we are fairly confident that our library is type and memory safe.
 
@@ -727,7 +739,7 @@ ghci| in (RS.get s1, RS.get s2, RS.get s3)
 \end{code}
 we need to get the same result, no matter whether we evaluate the first component of the resulting tuple before the second, or the other way around, or even all in parallel in separate threads.
 
-Achieving this in our library required some care. Because we wrap our computation in |unsafePerformIO|, we have to expect any of them to happen at almost any time. Simple graph traversal methods, which simply mark a node as “done” before visiting its successors, easily go wrong when a second evaluation hits such a supposedly “done” node, while the first traversal is still processing the graph. Getting this to the point where it seems to be working was non-trivial, as mentioned in \cref{sec:thread}.
+Achieving this in our library required some care. Because we wrap our computation in |unsafePerformIO|, we have to expect any of them to happen at almost any time. Simple graph traversal methods, which simply mark a vertex as “done” before visiting its successors, easily go wrong when a second evaluation hits such a supposedly “done” vertex, while the first traversal is still processing the graph. Getting this to the point where it seems to be working was non-trivial, as mentioned in \cref{sec:thread}.
 
 \subsection{Referential transparency}
 
@@ -765,7 +777,7 @@ This is not a simple infelicity of our implementation, but a fundamental limitat
 
 So does this invalidate our claims that we built a beautiful, well-behaved, pure abstraction? In the end that depends on your expectation: Do you expect that in a lazy, pure language lambda-lifting preserves meaning, including termination? Or is that an additional property of a language, which we can maybe do without?
 
-As you ponder this question, note that if you include (asymptotic) resource usage in your expectation of program equivalence, then such lambda-lifting is already rather dangerous in Haskell: The nice and fast knot-tied |fibs| from the introduction becomes horribly inefficient once you turn it into a recursive \emph{function} (|let fibs x y = x : y  : ...|). Because the lamda-lifting transformation is only a equivalence as long as we ignore (asymptotic) complexity, it seems that breaking that equivalence is not too wicked.
+As you ponder this question, note that if you include (asymptotic) resource usage in your expectation of program equivalence, then such lambda-lifting is already rather dangerous in Haskell: The nice and fast knot-tied |fibs| from the introduction becomes horribly inefficient once you turn it into a recursive \emph{function} (|let fibs x y = x : y  : ...|). Because the lamda-lifting transformation is only an equivalence as long as we ignore (asymptotic) complexity, it seems that breaking that equivalence is not too wicked.
 
 \Citet[Fact 3.7]{sabry} points out that merely changing the set of observational equivalences does, in general, \emph{not} imply that the extended language is not pure.
 
@@ -801,9 +813,9 @@ So with the exception of preservation under lambda-lifting, we are fairly confid
 
 Unfortunately, we do not know how to do that well. In the single-threaded world we could imagine extending an operational semantics for lazy languages such as \citeauthor{launchbury}’s [\citeyear{launchbury}] natural semantics for lazy evaluation with a global store for the mutable variables, and spurious evaluations for |unsafePerformIO|, but it seems tedious and we have not even added threads.
 
-The maybe most similar work is \citeauthor{runST}'s \citeyear{runST} proof that |runST :: ST -> a| is safe, but it does not yet cover laziness nor concurrency.
-They used the Iris framework, and for Idris one even finds a mechanized proof of the correctness of a generic fixpoint solver \citep{spygame}.
-It seems that important building blocks are already there, and we hope that this paper can maybe spurn motivate more work in that direction.
+The maybe most similar work is \citeauthor{runST}'s \citeyear{runST} proof that |runST :: ST a -> a| is safe, but it does not yet cover laziness nor concurrency.
+They used the Iris framework, and for Iris one even finds a mechanized proof of the correctness of a generic fixpoint solver \citep{spygame}.
+It seems that important building blocks are already there, and we hope that this paper can maybe motivate more work in that direction.
 
 
 \section{Related work}\label{sec:related}
@@ -816,7 +828,7 @@ The present work draws inspiration from and connects to various directions.
 
 All the work in making fixpoint solvers and data-flow analyses efficient is relevant here \citep{kildall-73,kam-ullman-76}. An important difference to typical data-flow analyses is that in order to stay pure, we cannot afford to make conservative approximations while solving the equations (e.g.\ aborting with a safe guess after a certain number of iterations).
 
-Also related is the concept of \emph{propagator network} \citep{propagator}, although our use-case is a bit simpler, as information only flows in one direction along an edge, and once we queried the value of one node, we never add more constraints that would influence that node.
+Also related is the concept of \emph{propagator network} \citep{propagator}, although our use-case is a bit simpler, as information only flows in one direction along an edge, and once we queried the value of one vertex, we never add more constraints that would influence that vertex.
 
 %\subsection{LVars}
 %
@@ -828,7 +840,7 @@ Also related is the concept of \emph{propagator network} \citep{propagator}, alt
 
 Their extension to Haskell is, in a way, bolder: It breaks more laws (referential transparency) in order to make the structure of the embedded graph observable, as necessary for their poster use-case. With our library, you \emph{cannot} observe the structure of the graph; you only get your hands on a unique fixpoint. This means it is unsuitable for some use-cases, but also less intrusive.
 
-We probably could have implemented our library on top of their observable sharing mechanism, reifying the graph of values as a data structure with explicitly named. We chose to do it differently, and use Haskell's laziness together with |unsafePerformIO| (which will be executed once per value) to create unique mutable cells and let those cells refer to each other. The graph is never actually turned into a (Haskell-level) data structure and the cells are not (explicitly) numbered or named; instead the graphs is represented as pointers on the heap, cells are implicitly identified by their object identity, and the bookkeeping data for each cell is stored within its mutable fields.
+We probably could have implemented our library on top of their observable sharing mechanism, reifying the graph of values as a data structure with explicitly named vertices. We chose to do it differently, and use Haskell's laziness together with |unsafePerformIO| (which will be executed once per value) to create unique mutable cells and let those cells refer to each other. The graph is never actually turned into a (Haskell-level) data structure and the cells are not (explicitly) numbered or named; instead the graphs is represented as pointers on the heap, cells are implicitly identified by their object identity, and the bookkeeping data for each cell is stored within its mutable fields.
 
 Looking beyond Haskell we want to point out CoCaml \citep{cocaml}, which allows the Ocaml programmer to observe the structure of knot-tied (coinductive) data, and even process such data while preserving the sharing (so that a |map| over a cyclic list is still cyclic).
 
@@ -849,10 +861,10 @@ Monotonicity is crucial for the existence and uniqueness of a solution (\cref{se
 \appendix
 \section{The reflexivie transitive closure, pedestrian-style}\label{sec:imp}
 
-In the introduction we mentioned that without the data structure presented in this paper, a programmer likely has to write their reflexive-transitive-closure code with an explicit loop (a tail-recursive |go| function), explicitly keeping track of seen nodes to avoid running in circles:
+In the introduction we mentioned that without the data structure presented in this paper, a programmer likely has to write their reflexive-transitive-closure code with an explicit loop (a tail-recursive |go| function), explicitly keeping track of seen vertices to avoid running in circles:
 \begin{code}
-transitive3 :: Graph -> Graph
-transitive3 g = M.fromList [ (v, S.toList (go S.empty [v])) | v <- M.keys g ]
+rTrans3 :: Graph -> Graph
+rTrans3 g = M.fromList [ (v, S.toList (go S.empty [v])) | v <- M.keys g ]
   where
     go :: S.Set Int -> [Int] -> S.Set Int
     go seen [] = seen
