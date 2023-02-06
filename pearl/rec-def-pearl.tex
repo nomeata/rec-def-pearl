@@ -787,7 +787,6 @@ The compiler tends to share the attitude that (at least asymptotic) complexity i
 
 The same holds for all the other transformations applied by the compiler, such as partial evaluation, case-of-case, worker/wrapper, common subexpression elimination etc.\ \citep{optimiser}. Because our library has nice equational properties, as long as sharing is preserved, we can be fairly certain that all these are still meaning-preserving in the presence of our library.
 
-
 \subsection{Sabry's criterion}
 
 One possible definition for purity is offered by \citet{sabry}:
@@ -802,9 +801,11 @@ It is not straight-forward to apply this criterion to our library, or Haskell it
 Because it requires multiple implementations we find Sabry’s criterion of purity not fully convincing. Maybe there exists a suitable criterion that works with a single language semantics, maybe by listing observable equivalences that must hold for a language to be considered pure?
 We'll leave this question hanging, hoping it can tempt someone to give a satisfying answer.
 
-% \subsection{Denotational semantics}
-% 
-% Pure functional programs can be given meaning not just via their actual implementation, or the pen-and-paper equivalent, their operational semantics, but also via denotaional semantics. These map every language construct compositionally to a mathematical model.
+\subsection{Longley’s criterion}
+
+\Citet{longley} makes the observation that there exist functions with perfectly pure and functional \emph{behavior} that cannot be \emph{implemented} in the pure fragment of the language, but can be implemented in a suitable extension (ML with references in his case). Our library is an example of that: It behaves pure and functional, but needs extensions (like |unsafePerformIO|) to be implemented.
+
+Longley considers a term to be functional if it denotes an element in the mathematical denotation of its type. At function type, this means they are extensional and that they are described by a mathematical function. We struggle applying this criterion directly, since we have not yet managed to find a denotational semantics for Haskell extended with our library. Unlike usual call-by-name semantics for pure functional programming languages, it must be be able to tell knot-tying recursion apart from unrestricted recursion. It remains to be seen if a satisfying denotational semantics can be found.
 
 
 \subsection{How to prove it?}
