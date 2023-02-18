@@ -205,7 +205,7 @@ rTrans1 g = M.map S.toList sets
     reaches :: M.Map Int (S.Set Int)
     reaches = M.mapWithKey (\v vs -> S.insert v (S.unions [ reaches M.! v' | v' <- vs ])) g
 \end{code}
-This code is remarkably close to the prosaic specification “the reachable vertices from a vertex |v| are |v| itself, plus all the vertices reachable from its successors”; hence we can call this code declarative.
+This code is remarkably close to the prosaic specification “the reachable vertices from a vertex |v| are |v| itself, plus all the vertices reachable from each of its successors |vs|”; hence we can call this code declarative.
 
 Note how the definition of |reaches| refers to itself -- we are “tying a knot”.
 
@@ -222,9 +222,9 @@ At least until our strict-language-using friend challenges us to add just one sm
 ghci> rTrans1 (M.fromList [(1,[2,3]),(2,[1,3]),(3,[])])
 fromList [(1,fromList ^CInterrupted.
 \end{code}
-Why does it fail? Because the graph has a \emph{cycle} ($1 \to 2 \to 1$), and that makes our code get lost in an infinite loop, until we abort the program.
+Why does it fail? Because the graph now has a \emph{cycle} ($1 \to 2 \to 1$), and that makes our code get lost in an infinite loop, until we abort the program.
 
-This is quite disappointing, because in order to handle recursive graphs as input, we now have to implement this in a much more tedious way, maybe with an explicit loop, keeping track of the set of seen vertices (see \cref{sec:imp} if you really want to see it, but the point is that you shoudn’t have to). It works, and most of us have written that idiom once (or many times), but we cannot impress our friend with that.
+This is quite disappointing, because in order to handle recursive graphs as input, we now have to implement this in a much more tedious way, maybe with an explicit loop, keeping track of the set of seen vertices (see \cref{sec:imp} if you really want to see it, but the point is that you shoudn’t have to). It works, and most of us have likely written that idiom before, but we cannot impress our friend with that.
 
 But it seems we should: The declarative specification, from which we have derived |rTrans1|, holds for recursive graphs as well, so it does not seem that unreasonable to expect our code to handle recursive graphs as well. Where does it go wrong? The way we use the lazy map data structure is fine; it helps us to express the set of reachable vertices by way of other such sets.
 The problem is that the set data structure, with its operations |insert| and |union|, is not lazy enough: |union| needs to know the value of its arguments before it can produce something useful, and thus cannot be used in a recursive, knot-tying way.
@@ -237,7 +237,7 @@ insert  :: Ord a =>  a -> RSet a  -> RSet a
 unions  :: Ord a =>  [RSet a]     -> RSet a
 get     ::           RSet a       -> Set a
 \end{code}
-In addition to the two operations used by |rTrans1|, with type signatures mirroring those of |Data.Set| exactly, we find the function |get| to convert our |RSet| to a normal |Set|.
+We find the two operations used by |rTrans1|, with type signatures mirroring those of |Data.Set| exactly, and a function |get| that converts such a |RSet| to a normal |Set|.
 
 We can use this data structure without changing the structure of our code; we just swap out the operations (imported |qualified as RS|) and convert back to conventional sets in the end:
 \begin{code}
