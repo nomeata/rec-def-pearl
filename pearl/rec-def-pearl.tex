@@ -760,20 +760,19 @@ Achieving this in our library required some care. Because our computation are tr
 \subsection{Referential transparency}\label{sec:reftrans}
 
 Purity is usually understood to also imply referential transparency: If |x| is defined to be |e|, then we can replace an occurrence |x| with |e|, and vice-versa, without changing the meaning of the program.
+(Care has to be taken when applying this to recursive definitions. Of course we do not expect |let x = 1 in x| to be the same as |let x = x in x|, although we merely replaced |1| with |x|.)
 
-Care has to be taken when interpreting this definition in recursive definitions. Of course we do not expect |let x = 1 in x| to be the same as |let x = x in x|, although we merely replaced |1| with |x|.
+So is our library still referential transparent? By virtue of always calculating a unique fixpoint, it is!  The value of |let rs2 = RS.insert 42 rs1| is the (least) set for which the equation |RS.get rs2 == S.insert 42 (RS.get rs1)| is true, and thus |rs2| and |RS.insert 42 rs1| can be used interchangeably.
 
-So is our library still referential transparent? By virtue of always calculating a unique fixpoint, it is!  The value of |let rs2 = RS.insert 42 rs1| is the (least) set for which the equation |RS.get rs2 == S.insert 42 (RS.get rs1)| is true, and thus |rs2| and |RS.insert 42 rs1| can be used interchangeable.
-
-This restriction to fixpoints, i.e.\ to solutions of a set of equations, puts a clear limit on the kind of observations we allow the programmer to make about the recursive equations. For example, it would not be pure if the programmer could obtain the number of equations. This rules out using our approach for use-cases where the actual graph structure of the equations (and not just a solution of the equations) is of interest, e.g.\ generating circuit descriptions \cite{observable-sharing}.
+This restriction to fixpoints, i.e.\ to solutions of a set of equations, puts a clear limit on the kind of observations we allow the programmer to make about the recursive equations. For example, it would not be pure if the programmer could obtain the number of equations. This rules out using our approach for use-cases where the actual \emph{structure} of the equations (and not just a solution) is of interest, e.g.\ when generating circuit descriptions \cite{observable-sharing}.
 
 \subsection{Program equivalences and lambda lifting}\label{sec:sat}
 
-Referential transparency is a crucial ingredient to equational reasoning: rewriting the code according to a set of rules, while preserving its meaning. Replacing |x| with its definition |e| is called unfolding, or \textdelta-reduction, but there are further program transformations that we expect to preserve semantics. They may be applied by optimizing compiler, used in program verification or simply by a programmer trying to understand the meaning of the code.
+Referential transparency is a crucial ingredient to equational reasoning: rewriting the code according to a set of rules, while preserving its meaning. Beyond just replacing |x| with its definition |e| (also called \emph{unfolding} or \textdelta-reduction) are further program transformations that we expect to preserve semantics. They may be applied by optimizing compiler, used in program verification or simply by a programmer trying to understand the meaning of some code.
 
-Ideally, all program transformations that are meaning-preserving in pure Haskell ould still meaning-preserving in the presence of our library. Unfortuately, this is not the case: Lambda lifting can turn terminating programs into non-terminating ones.
+Ideally, all program transformations that are meaning-preserving in pure Haskell would still meaning-preserving in the presence of our library. Unfortuately, this is not the case: Lambda lifting can turn terminating programs into non-terminating ones.
 
-In general in Haskell, if we have a recursive value definition involving an expression |e|, we it is ok to turn that into a recursive function definition abstracting over that expression: We can go from
+In general in Haskell, if we have a recursive value definition involving an expression |e|, it is ok to turn that into a recursive function definition abstracting over that expression: We can go from
 \begin{code}
 let x = ... x ... e ... in x
 \end{code}
@@ -789,19 +788,19 @@ ghci> let rs y = RS.insert y (rs y) in RS.get (rs 42)
 fromList ^CInterrupted.
 \end{code}
 
-This is not a simple infelicity of our implementation, but a fundamental limitation: In the original program, our library can get its (magic, |unsafePerformIO|-powered) hands on a \emph{finite} graph of connected values. In the transformed program there is now a recursive function that endlessly creates new values, and our library can never see a complete set of equations. It seems that no (reasonable) implementation of the interface in \cref{fig:api} can solve this problem. By this reasonsing we deduce that a pure implementation of that interface indeed does not exist.
+This is not a simple infelicity of the current implementation, but a fundamental limitation: In the original program, our library can get its (magic, |unsafePerformIO|-powered) hands on a \emph{finite} graph of recursively defined values. In the transformed program there is now a recursive function that endlessly creates \emph{new} values, and our library will never see a complete set of equations. It seems that no (reasonable) implementation of the interface in \cref{fig:api} can solve this problem. (By this reasonsing we also deduce that a pure implementation of that interface indeed does not exist.)
 
-So does this invalidate our claims that we built a beautiful, well-behaved, pure abstraction? In the end that depends on your expectation: Do you expect that in a lazy, pure language lambda-lifting preserves meaning, including termination? Or is that an additional property of a language, which we can maybe do without?
+So does this invalidate our claims that we built a beautiful, well-behaved, pure abstraction? In the end that depends on your expectation: Do you expect that in a pure and lazy language lambda-lifting preserves meaning, including termination? Or is that an additional property of some languages, which we can maybe do without?
 
-As you ponder this question, note that if you include (asymptotic) resource usage in your expectation of program equivalence, then such lambda-lifting is already rather dangerous in Haskell: The nice and fast knot-tied |fibs| from the introduction becomes horribly inefficient once you turn it into a recursive \emph{function} (|let fibs x y = x : y  : ...|). Because the lamda-lifting transformation is only an equivalence as long as we ignore (asymptotic) complexity, it seems that breaking that equivalence is not too wicked.
+As you ponder this question, note that if you include (asymptotic) resource usage in your expectation of program equivalence, then such lambda-lifting is already rather dangerous in Haskell: The nice and fast knot-tied |fibs| from the introduction becomes horribly inefficient once you turn it into a recursive \emph{function} (|let fibs x y = x : y  : zipWith (+) (fibs x y) (tail (fibs x y))|). Because the lamda-lifting transformation is only an equivalence as long as we ignore (asymptotic) complexity, it seems that breaking that equivalence is not too wicked.
 
-\Citet[Fact 3.7]{sabry} points out that merely changing the set of observational equivalences does, in general, \emph{not} imply that the extended language is not pure.
+\Citet[Fact 3.7]{sabry} points out that merely changing the set of observational equivalences does \emph{not}, in general and on its one, imply that the extended language is no longer pure.
 
-\subsection{Compiler transformation}
+\subsection{Compiler transformations}\label{sec:comptrans}
 
-The compiler tends to share the attitude that (at least asymptotic) complexity is a relevant aspect of program semantics, and will be careful to preserve (recursive) sharing that is explicit in the source program. Therefore we can be fairly certain that it will not just nilly-willy apply such lambda-lifting to our code.
+The compiler tends to share the attitude that (at least asymptotic) complexity is a relevant aspect of the program's semantics, and will thus be careful to preserve (recursive) sharing that is explicit in the source program. Therefore we can be fairly certain that it will not just nilly-willy apply such lambda-lifting to our code.
 
-The same holds for all the other transformations applied by the compiler, such as partial evaluation, case-of-case, worker/wrapper, common subexpression elimination etc.\ \citep{optimiser}. Because our library has nice equational properties, as long as sharing is preserved, we can be fairly certain that all these are still meaning-preserving in the presence of our library.
+The same holds for all the other transformations applied by the compiler, such as partial evaluation, case-of-case, worker/wrapper, common subexpression elimination etc.\ \citep{optimiser}. Because our library has these nice equational properties as long as sharing is preserved, we can be fairly certain that all these are still meaning-preserving in the presence of our library.
 
 \subsection{Sabry's criterion}
 
@@ -821,16 +820,15 @@ We'll leave this question hanging, hoping it can tempt someone to give a satisfy
 
 \Citet{longley} makes the observation that there exist functions with perfectly pure and functional \emph{behavior} that cannot be \emph{implemented} in the pure fragment of the language, but can be implemented in a suitable extension (ML with references in his case). Our library is an example of that: It behaves pure and functional, but needs extensions (like |unsafePerformIO|) to be implemented.
 
-Longley considers a term to be functional if it denotes an element in the mathematical denotation of its type. At function type, this means they are extensional and that they are described by a mathematical function. We struggle applying this criterion directly, since we have not yet managed to find a denotational semantics for Haskell extended with our library. Unlike usual call-by-name semantics for pure functional programming languages, it must be be able to tell knot-tying recursion apart from unrestricted recursion. It remains to be seen if a satisfying denotational semantics can be found.
-
+Longley considers a term to be functional if it denotes an element in the mathematical denotation of its type. At function type, this means they are extensional and that they are described by a mathematical function. We struggle applying this criterion directly, since we have not yet managed to find a denotational semantics for Haskell extended with our library. Unlike usual call-by-name semantics for pure functional programming languages, it must be be able to tell knot-tying recursion apart from unrestricted recursion. It remains to be seen if we can find a suitable denotational semantics.
 
 \subsection{How to prove it?}
 
-So with the exception of preservation under lambda-lifting, we are fairly confident that our library is as pure as advertised. Ideally we'd like to be sure, and we’d be sure if we could perform a rigorous proof.  That not only requires a clear definition of what exactly “pure“ means, as discussed above, but also a framework that allows us to to reason about lazy programs with |unsafePerformIO|, |IORef|, laziness and (ideally) multiple threads.
+So with the exception of preservation under lambda-lifting, we are fairly confident that our library is as pure as advertised. Ideally we'd like to be sure, and we’d be sure if we could perform a rigorous proof.  That not only requires a clear definition of what exactly “pure“ means, as discussed above, but also a framework that allows us to reason about lazy programs with |unsafePerformIO|, |IORef|, laziness and concurrency.
 
-Unfortunately, we do not know how to do that well. In the single-threaded world we could imagine extending an operational semantics for lazy languages such as \citeauthor{launchbury}’s [\citeyear{launchbury}] natural semantics for lazy evaluation with a global store for the mutable variables, and spurious evaluations for |unsafePerformIO|, but it seems tedious and we have not even added threads.
+Unfortunately, we do not know how to do that well. In the single-threaded world we could imagine extending an operational semantics for lazy languages such as \citeauthor{launchbury}’s [\citeyear{launchbury}] natural semantics for lazy evaluation with a global store for the mutable variables, and spurious evaluations for |unsafePerformIO|, but it seems tedious and we would not yet have threads.
 
-The maybe most similar work is \citeauthor{runST}'s \citeyear{runST} proof that |runST :: ST a -> a| is safe, but it does not yet cover laziness nor concurrency.
+The maybe most similar work is \citeauthor{runST}'s \citeyear{runST} proof that |runST :: ST a -> a| is safe, although it does not yet cover laziness nor concurrency.
 They used the Iris framework, and for Iris one even finds a mechanized proof of the correctness of a generic fixpoint solver \citep{spygame}.
 It seems that important building blocks are already there, and we hope that this paper can maybe motivate more work in that direction.
 
@@ -841,7 +839,7 @@ The present work draws inspiration from and connects to various directions.
 
 \subsection{Fixpoint solvers and propagation networks}
 
-\Cref{sec:impcore} describes the “imperative core” of our library: An underlying library that allows us to declare the cells of a possibly cyclic graph of values and their relations and finds the solution. For the purposes of this paper we can assume this to be a black box, to avoid getting distracted by questions related to the theory and implementation of this black box, which is good, as there is much interesting than can be said and done here.
+\Cref{sec:impcore} describes the “imperative core” of our library: An underlying library that allows us to declare the cells of a possibly cyclic graph of values with their relations and finds the solution. For the purposes of this paper we can assume this to be a black box, to avoid getting distracted by questions related to the theory and implementation of this black box, which is good, as there is much interesting than can be said and done here.
 
 All the work in making fixpoint solvers and data-flow analyses efficient is relevant here \citep{kildall-73,kam-ullman-76}. An important difference to typical data-flow analyses is that in order to stay pure, we cannot afford to make conservative approximations while solving the equations (e.g.\ aborting with a safe guess after a certain number of iterations).
 
@@ -853,18 +851,18 @@ Also related is the concept of \emph{propagator network} \citep{propagator}, alt
 
 \subsection{Shallow graph embeddings and observable sharing}
 
-\Citet{observable-sharing} made sharing observable in Haskell, so that they can very elegantly describe logic circuits in Haskell. They extend pure Haskell with operations that one might dismiss as impure (observable object identity), point out that this breaks some equational equivalences of Haskell, but that this may be acceptable, given that some of these code transformations are not benign to begin with, as they can duplicate arbitrary amount of work anyways -- a line of reasoning you may recognize from \cref{sec:pure}.
+\Citet{observable-sharing} made sharing observable in Haskell, so that they can very elegantly describe logic circuits in Haskell. They extend pure Haskell with operations that one might dismiss as impure (observable object identity), point out that this breaks some equational equivalences of Haskell, but that this may be acceptable, given that some of these equivalences  are not benign code transformations to begin with, as they can duplicate arbitrary amount of work anyways -- a line of reasoning you may recognize from \cref{sec:comptrans}.
 
-Their extension to Haskell is, in a way, bolder: It breaks more laws (referential transparency) in order to make the structure of the embedded graph observable, as necessary for their poster use-case. With our library, you \emph{cannot} observe the structure of the graph; you only get your hands on a unique fixpoint. This means it is unsuitable for some use-cases, but also less intrusive.
+Their extension to Haskell is bolder: It breaks more laws (even referential transparency!) in order to make the structure of the embedded graph observable, as necessary for their poster use-case. With our library, you \emph{cannot} observe the structure of the graph; you only get your hands on the unique solution to the equations. This means it is unsuitable for some use-cases, but also less disruptive.
 
-We probably could have implemented our library on top of their observable sharing mechanism, reifying the graph of values as a data structure with explicitly named vertices. We chose to do it differently, and use Haskell's laziness together with |unsafePerformIO| (which will be executed once per value) to create unique mutable cells and let those cells refer to each other. The graph is never actually turned into a (Haskell-level) data structure and the cells are not (explicitly) numbered or named; instead the graphs is represented as pointers on the heap, cells are implicitly identified by their object identity, and the bookkeeping data for each cell is stored within its mutable fields.
+We probably could have implemented our library on top of their observable sharing mechanism, reifying the graph of values as a data structure with explicitly named vertices. We chose to do it differently, and use Haskell's laziness together with |unsafePerformIO| (which will be executed once per value) to create unique mutable cells and let those cells refer to each other. The graph is never actually turned into a (Haskell-level) data structure and the cells are not (explicitly) numbered or named; instead the graphs is represented by the pointers on the heap, cells are implicitly identified by their object identity, and the bookkeeping data for each cell is stored within its mutable fields.
 
-Looking beyond Haskell we want to point out CoCaml \citep{cocaml}, which allows the Ocaml programmer to observe the structure of knot-tied (coinductive) data, and even process such data while preserving the sharing (so that a |map| over a cyclic list is still cyclic).
+Looking beyond Haskell we want to point out CoCaml \citep{cocaml}, which allows the Ocaml programmer to observe the structure of knot-tied (coinductive) data, and even process such data while preserving the sharing (so that a |map| over a cyclic list can return a cyclic list).
 
 
 \subsection{Logic programming}
 
-For the kind of use-cases presented here, logic programming languages like Prolog and Datalog are certainly on their home turf. What we bring to the table is the seamless integration into a purely functional language.
+For the kind of use-cases presented here, logic programming languages like Prolog and Datalog are certainly on their home turf. What we bring to the table is the seamless integration into an existing purely functional language.
 
 Particularly close to our work, and straddling the functional and logic programming paradigms, is the \emph{Datafun} language \citep{datafun}, a pure and total functional programming language generalizing Datalog, which can declaratively express and compute fixed points of monotone maps on semilattices -- exactly what we are trying to do. Since they tailor their language around this idea, their type system can recognize \emph{monotonic} function definitions.
 
@@ -872,9 +870,9 @@ Monotonicity is crucial for the existence and uniqueness of a solution (\cref{se
 
 \section{Conclusion and further work}
 
-We saw that we can extend Haskell with the ability to solve recursive equations involving Boolean and sets, that this extension can be implemented as a regular library, and that this extension -- arguably -- preserves the nice properties of the language.
+We saw that we can extend Haskell with the ability to solve recursive equations involving Boolean and sets, that this extension can be implemented as a library, and that this extension -- arguably -- preserves the nice properties of the language.
 
-Of course there is more to be done. On the practial side there are more data types and operations to be included in the library (natural numbers in various ordering, maps). On the theoretical side, a more rigorous, formal approach to the question of whether this is actually safe and pure is worth pursuing.
+Of course there is more to be done. On the practial side there are more data types and operations to be included in the library (natural numbers in various ordering, maps). On the theoretical side, a more rigorous, formal approach to the question of whether this is actually safe and pure is worth pursuing, as is finding a denotational way to describe what the library do.
 
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{bib}
