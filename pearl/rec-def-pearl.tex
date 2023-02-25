@@ -42,6 +42,8 @@
 %format Data.Recursive.Bool     = "\StyleMod{Data.Recursive.Bool}"
 %format Data.Recursive.DualBool = "\StyleMod{Data.Recursive.DualBool}"
 %format Data.Propagator.P2      = "\StyleMod{Data.Propagator.P2}"
+%format Control.Concurrent.MVar = "\StyleMod{Control.Concurrent.MVar}"
+%format System.IO.RecThunk      = "\StyleMod{System.IO.RecThunk}"
 
 % all types
 %format Exp           = "\StyleType{Exp}"
@@ -63,6 +65,7 @@
 %format ST            = "\StyleType{ST}"
 %format IORef         = "\StyleType{IORef}"
 %format Cell          = "\StyleType{Cell}"
+%format MVar          = "\StyleType{MVar}"
 %format RBool         = "\StyleType{RBool}"
 %format RB.RBool      = "\StyleType{RB.RBool}"
 %format RDualBool     = "\StyleType{RDualBool}"
@@ -79,6 +82,7 @@
 %format True   = "\StyleConstr{True}"
 %format False  = "\StyleConstr{False}"
 %format MkRSet = "\StyleConstr{MkRSet}"
+%format MkCell = "\StyleConstr{MkCell}"
 
 \definecolor[named]{Set3a}{cmyk}{0.60,0.00,0.30,0.00}
 \definecolor[named]{Set3b}{cmyk}{0.00,0.45,0.50,0.00}
@@ -451,24 +455,24 @@ And it’s not for lack of a solution: Clearly the empty set is the least soluti
 
 Because our library is but a library, despite the apparent magic inside (which we will uncover in \cref{sec:impl}), with a definition like |let s = s|, it has no chance to insert its magic.
 
-The problem goes away as soon as any function from the API is involved in the definition, even if it is semantically the identity:
+The problem goes away as soon as \emph{any} function from the API is involved in the definition, even if it is semantically the identity:
 \begin{code}
 ghci> let x = RS.unions [x] in RS.get x
 fromList []
 \end{code}
 
-This is a little stumbling block when using this library. And while programmers are unlikely to write |let x = x| directly, the effect can occur when tying the knot via a lazy data structure. In that case, the programmer is advised to insert a semantic identity function in the right position; the function |RS.id :: Set a -> Set a| can be used for that purpose.
-A programming language that integrates these features first-class can take care of this automatically.
+This is a little stumbling block when using this library. And while programmers are unlikely to write |let x = x| directly, the same thing can happen when tying the knot via a lazy data structure. In that case, the programmer is advised to insert a semantic identity function in a suitable position; the API provides |RS.id :: Set a -> Set a| for that purpose.
+A programming language that integrates these features first-class could take care of this automatically.
 
 \section{Case study: a program analysis}\label{sec:casestudy}
 
-Before we leave the user's point of view and look under the hood of the library, let us conclude the section with a slight larger and more realistic use-case. We hope that this example shows that using recursively definable values can make the code noticeably more declarative and elegant.
+Before we leave the user's point of view and look under the hood of the library, let us conclude the section with a slight larger and more realistic use-case. We hope that this example shows that using recursively definable values allows for noticeably more declarative and elegant programs.
 
 \subsection{First without recursion}
 
-The example is a small program analysis of a functional language with lazy let-bindings, (mutual) recursion and exceptions that determines whether evaluating an expression may throw an (uncaught) expression.
+Let us consider small program analysis of a functional language with lazy let-bindings, (mutual) recursion and exceptions. It should determine whether evaluating an expression may throw an (uncaught) expression.
 
-To set the stage, \cref{fig:analast} contains a Haskell Datatype for a typical abstract syntax. The |LetRec| constructor takes a list of bound variables along with their definition's  right-hand side, and a body; all bound variables are in scope in all the right-hand sides and the body.
+To set the stage, \cref{fig:analast} contains a typical Haskell datatype for its abstract syntax. The |LetRec| constructor takes a list of bound variables along with their definition's  right-hand side, and a body; all bound variables are in scope in all the right-hand sides and the body.
 Variable names bound in |Lam|, |Let| and |LetRec| shadow outer occurrences. (The resemblance to GHC's intermediate language Core \citep{secrets} is certainly not a coincidence.)
 
 \begin{figure}
@@ -483,7 +487,7 @@ data Exp  =  Var V | Lam V Exp | App Exp Exp | Throw | Catch Exp
 \label{fig:analast}
 \end{figure}
 
-Let us ignore |LetRec| at first, and write that analysis as a simple traversal of the AST:
+Let us ignore |LetRec| at first, and write our analysis as a simple traversal of the AST:
 \savecolumns
 \begin{code}
 canThrow :: Exp -> Bool
@@ -501,8 +505,9 @@ canThrow e = go M.empty e
         env'      = M.union env_bind env
 \end{code}
 
-To determine whether evaluating a varible can throw, because of laziness, we have to carry around an
-environment of type |M.Map V Bool| where we remember whether the corresponding right-hand could throw. |Throw| and |Catch| certainly can resp.\ cannot throw. The analysis isn't higher order, so for lambdas we assume they can throw if their body can throw, and for applications when either subexpression can throw. And finally for |Let|, we extend the environment with the analysis result of the bound variable and descend.
+Our language is lazy, so to determine whether evaluating a varible can throw,
+we have to carry around an
+environment of type |M.Map V Bool| where we remember whether the corresponding right-hand side could throw. |Throw| and |Catch| certainly can resp.\ cannot throw. The analysis isn't higher order, so for lambdas we assume they can throw if their body can throw, and for applications if either subexpression can throw. Finally for |Let|, we extend the environment with the analysis result of the bound variable's right-hand side and descend.
 
 \subsection{Avoiding the black hole}
 So far, so standard. But what about |LetRec|? Here, the analysis result of each right-hand side depends on the analysis results of all right-hand sides. We can try to simply do what we did in the |Let| case:
@@ -538,11 +543,11 @@ canThrow e = RB.get (go M.empty e)
         env_bind  = M.fromList [ (v, RB.id (go env' e)) | (v,e) <- binds ]
         env'      = M.union env_bind env
 \end{code}
-All we did was to change the type of the local function |go| to use |RBool| instead of |Bool|, used the corresponding operations (|RB.true|, |RB.false| and |RB.|||||) and  projected out to normal Booleans at the end (using |RB.get|). A slight blemish is that we also inserted a call to |RB.id| to not fall over the input |LetRec [("x", Var "x")]|, as explained in \cref{sec:blackhole}.
+All we had to do was to use |RBool| instead of |Bool| in the type of the local, use the corresponding operations (|RB.true|, |RB.false| and |RB.|||||) and  project out to normal Booleans at the end (using |RB.get|). A slight blemish is that we also had to insert a call to |RB.id| to not fall over the input |LetRec [("x", Var "x")]|, as explained in \cref{sec:blackhole}.
 
 \subsection{Results everywhere}
 
-To keep it simple for this paper the analysis does not update the AST (e.g. remove redundant calls to |Catch|, or update analysis information stored in the variables as GHC would do), as the necessary plumbing would obscure our point. But it would work: we can use |RB.get| within the function to get the analysis result for any subexpression and return a changed AST accordingly, e.g.
+To keep it simple for this paper the analysis does not update the AST (e.g. remove redundant calls to |Catch|, or remember analysis results in the AST as GHC would do), as the necessary plumbing would obscure our point. But it would work: we can use |RB.get| within the function to get the analysis result for \emph{any} subexpression and return a changed AST accordingly, e.g.
 \restorecolumns
 \begin{code}
     go :: M.Map V RBool -> Exp -> (RBool, Exp)
@@ -557,7 +562,7 @@ We'd have to be careful that the |RBool| returned by |go| does not depend on any
 %The ability to query each “vertex” as we go sets this approach apart from other idioms with a
 
 \subsection{Alternatives}
-What would we do if we did not have |RBool| at our disposal? Here are some common options
+What would we do if we did not have |RBool| at our disposal? Here are some common options:
 \begin{itemize}
 \item We can perform an explicit fixpoint analysis in the |LetRec| case: Initialize the |env_bind| with all variables mapped to |False|, descend, check if now any analysis result has changed, and if so, re-analyze all of them, until we found a solution.
 
@@ -567,20 +572,21 @@ Maybe some of that logic can be extracted into a suitable fixpoint operator.
 
 In any case, we would obscure the declarative intent of the code with lower-level bookkeeping.
 
-\item If we do that naively, we can run into the problem that in the presence of nested recursive lets, the nested fixpoint iteration can cause exponential complexity.
+\item If we do that naively, we can run into the problem that in the presence of nested recursive lets, the nested fixpoint iteration comes with exponential complexity.
 
 In the case where the analysis result is persisted as annotations in the syntax tree anyways, we can address this issue by starting the fixpoint iteration not from bottom, but from the result of the previous outer iteration.
-
+%
 GHC does this, as explained in \citet[Section 6.6]{modular}, but again at the cost of more plumbing obscuring the code's intent.
 
-\item Another way to approach the problem is to gather the full data flow problem from the whole AST, solve it globally (thus also avoiding the problem mentioned in the previous bullet), and then distributing the analysis again to where we need it. This is reminiscent of how a constrained-based type inference algorithm works.
+\item Another approach is to gather the full data flow problem from the \emph{whole} AST, solve it globally (thus also avoiding the problem mentioned in the previous bullet), and then distributing the analysis again to where we need it. This is reminiscent of how a constrained-based type inference algorithm works.
 
-It is a satisfying thought that this approach frees the solving algorithm from having to follow the syntactic nesting structure of the program, and that the repeated passes of the fixpoint iteratation do not have to re-analyze the AST over and over, and instead only see the pure data-flow equations.
+It is a satisfying thought that this approach frees the solving algorithm from having to follow the syntactic nesting structure of the program, and that the repeated passes of the fixpoint iteratation do not have to traverse and re-analyze the AST over and over. Instead is only sees the pure, distilled data-flow equations.
 
 There are, however, petty practical issues with this approach (representing the equations as data, uniquely nameing the cells, the separate passes for collecting the equations and using the results).
 At this point, one is likely going to hide this bookkeeping in a suitable monad, which can recover some of the lost elegance, but if the code could otherwise be written as pure functions, that is still quite a price to pay.%
 \footnote{See \url{https://hackage.haskell.org/package/datafix-0.0.1.0/docs/Datafix-Denotational.html\#v:datafix} for an attempt.}
 \end{itemize}
+
 When our library is applicable, it allows us to retain the concise elegance of the pure code that does not bother with the “how” of solving equations, while under the hood the solver has a comprehensive global view of the problem.
 
 
@@ -597,17 +603,20 @@ This is our goal; whether the abstraction presented in \cref{sec:exploration} is
 
 \subsection{A naive implementation}
 
-The core idea behind the implementation can be explained in two simple steps: First, we use an imperative API to declare values, register their relationships and read their values, and then we wrap that in a pure and sufficiently lazy wrapping. We begin by outlining a naive implementation that initially ignores issues of reentrancy-safety, modularity, performance and space-leaks.
+The core idea behind the implementation can be explained in two simple steps: First, we use an imperative API to declare values, register their relationships and read their values, and then we wrap that in a pure and sufficiently lazy API. We begin by outlining a naive implementation that initially ignores issues of reentrancy-safety, modularity, performance and space-leaks.
 
 \subsection{An imperative core}\label{sec:impcore}
 
 A typical \emph{imperative} API to describe and solve a set of recursive equations provides functions to (1) register the variables, or \emph{cells}, (2) define their relationships and (3) finally read their values. To keep the example code small, we focus on just sets and insertion as the only operation, and could imagine an API like the following:
+
+\begin{minipage}{\linewidth}
 \begin{code}
 data Cell a
-newCell       ::  IO (Cell a)
-defCellInsert  ::  Ord a => Cell a -> a -> Cell a -> IO ()
-getCell       ::  Cell a -> IO (Set a)
+newCell        ::                                      IO (Cell a)
+defCellInsert  ::  Ord a =>  Cell a -> a -> Cell a ->  IO ()
+getCell        ::            Cell a ->                 IO (Set a)
 \end{code}
+\end{minipage}
 
 A typical use of this API, solving a mutually recursive set equation, could be
 \begin{code}
@@ -619,14 +628,22 @@ ghci> getCell c2
 fromList [23,42]
 \end{code}
 
-At this point, the actual implementation of this API is not that interesting. In a simple implementation a cell would consist of a current value (initialized to the empty set), and a list of cells depending on this value, and then the changes due to calls to |defCellInsert| are propagated through this network until no more changes need to be propagated. Of course, more sophisticated algorithms may lurk underneath this interface.
+At this point, the actual implementation of this API is not that interesting. In a simple implementation a cell would consist of a current value (initialized to the empty set), and a list of cells depending on this value, and then the changes due to calls to |defCellInsert| are propagated through this network until no more changes need to be propagated (\cref{sec:impcoreimpl} re-phrases this summary in Haskell). Of course, more sophisticated algorithms may lurk underneath this interface.
 
 \subsection{The pure wrapping}
 
-The more interesting question is how to get from the imperative |Cell| code to the pure |RSet| API, with |insert :: a -> RSet a -> RSet a| and |get :: RSet a -> Set a|?
+The more interesting question is how to get from the imperative |Cell| code to the pure |RSet| API, consisting of just |insert :: a -> RSet a -> RSet a| and |get :: RSet a -> Set a|?
 
 Clearly, |insert| must somehow both create a new cell, and define its equation.
 Furthermore, it has to be lazy in its second argument, else a recursive equation would immediately loop, so it somehow has to defer the call to |defCellInsert| a bit. This leads to the code seen in \cref{fig:wrap}, which we go through in detail:
+
+A value of type |RSet| consists of three fields
+\begin{itemize}
+\item The |Cell a| backing the value we are defining.
+\item An |IO ()| action, deferred until the value is actually needed. A value is needed if |get| is used on the |RSet|, or on another |RSet| that depends on this one.
+\item A flag to remember if this deferred action has run already.
+\end{itemize}
+
 
 \begin{figure}%
 \setlength{\abovedisplayskip}{0pt}%
@@ -656,16 +673,9 @@ get (MkRSet c todo _) = unsafePerformIO $ do
 \caption{Wrapping an imperative propagator library in a pure way}\label{fig:wrap}
 \end{figure}
 
-A value of type |RSet| consists of three fields
-\begin{itemize}
-\item The |Cell a| backing the value we are defining.
-\item An |IO ()| action, deferred until the value is actually needed (directly due to |get|, or indirectly).
-\item A flag to remember if that deferred action has run already.
-\end{itemize}
-
 The function |get| does not do much: It triggers the |todo| action, and afterwards returns the current value of the cell. The interesting bits are in the |insert| function: It creates a new cell to represent the result, and a “done”-flag. It returns these together with a |todo|-action, which is \emph{not yet run}. Note that the second argument, |r2|, is \emph{not} looked at yet, so |insert| is lazy, as required.
 
-The |todo| action itself uses the flag to ensure it is only run once. Only now the value |r2| is analyzed, and the relationship between the cells is registered. It also runs the |todo| action of the other cell. This way, a single call to |get| will recursively trigger the |todo| actions of all involved values -- and the flags prevent that process from running in cycles.
+The |todo| action itself uses the flag to ensure it is only run once. Only therein the value |r2| is analyzed, and the relationship between the cells is registered. It also runs the |todo| action of the other cell. This way, a single call to |get| will recursively trigger the |todo| actions of all involved values -- and the flags prevent that process from running in cycles.
 
 \subsection{Less naively, please}
 
@@ -673,19 +683,21 @@ This code describes the essence of our idea, and easily generalizes to the other
 
 \subsubsection{Reentrancy and thread safety.}\label{sec:thread}
 
-The |done| flag is used to ensure that the |todo| action is run exactly once. But if |get| is invoked concurrently, the code above is obviously racy. Even worse: Because this is run from |unsafePerformIO|, even in a single-threaded environment we have to worry about reentrancy, as forcing any unevaluated user-provided expression could kick off execution of another call to |get|.
+The |done| flag is used to ensure that the |todo| action is run exactly once. But if |get| is invoked concurrently, the code above is obviously racy.
 
-In our library we address this with careful use of |MVar| \cite{concurrent}, and hide this cleanly behind a small abstraction for “possibly recursive |IO|-thunks” in the |System.IO.RecThunk| API.
+Even worse: Because this is run from |unsafePerformIO|, even in a single-threaded environment we have to worry about reentrancy, as forcing any unevaluated user-provided expression could kick off execution of another call to |get|.
 
-The dejafu test library \citep{dejafu}, which can exhaustively explore all possible interleavings of concurrent code, has proven invaluable: more than once we thought we had finally achieved thread-safety, only to be told that we were still far off.
+In our library we address this with careful use of the |MVar| concurrency primitive \cite{concurrent}, and hide this cleanly behind a small abstraction for “possibly recursive |IO|-thunks” in the |System.IO.RecThunk| API.
+
+The dejafu test library \citep{dejafu}, which can exhaustively explore all possible interleavings of concurrent code, has proven invaluable when implementing that abstraction: more than once we thought we had finally achieved thread-safety, only to be told that we were still far off.
 
 \subsubsection{Modularity.}
 
-The naive code above supports just one value type, |Set|, because the underlying imperative propagator library |Cell| only supports that type. The full library abstracts over the underlying propagator. This way we can have recursively defined values of different types (|RSet a|, |RBool|), operations connecting them (e.g.\ |member|) and allow solving heterogenously typed sets of equations.
+The naive code above supports just one value type, |Set|, because the underlying imperative propagator library |Cell| only supports that type. The full library abstracts over the underlying propagator. This way we can have recursively defined values of different types (|RSet a|, |RBool|), operations connecting them (e.g.\ |member|) and even allow solving heterogenously typed sets of equations.
 
 Supporting different propagator libraries also opens the way for important performance optimizations that are specific to various value types. The most generic propagator implementation assumes no structure on its values besides equality, and just keeps propagating changes until the graph has stabilized. But if we can have different propagator implementations for different types, smarter propagator libraries can be written.
 
-For example for Booleans, a cell changes its value at most once, from |False| to |True|. Once it is already |True|, it will never change again, and one can drop its connection to other cells (see the |Data.Propagator.P2| module).
+For example for Booleans, a cell changes its value at most once, from |False| to |True|. Once it is |True|, it will never change again, and one can drop its connection to other cells (see the |Data.Propagator.P2| module).
 
 Similarly, a propagator library for finite sets can propagate just deltas, instead of always recomputing the sets from its full inputs, to avoid repeating work. (This is not yet implemented in our library, but would be possible without affecting the public API.)
 
@@ -693,16 +705,16 @@ Similarly, a propagator library for finite sets can propagate just deltas, inste
 
 Another, maybe subtle, problem with our pure wrapping of an imperative propagator library is that it can easily lead to space leaks.
 
-Consider the |insert| function. With |rs2 = RS.insert x rs1| we create a new mutable cell for |rs2|, and tell the mutable cell in |rs1| to notify the other cell of any changes. This means that now somewhere in |rs1| there is a reference to |rs2| -- exactly the other way around from what one would expect from the code. This prevents resources allocated for |rs2| from beeing freed while |rs1| is alive.
+Consider the |insert| function. With |rs2 = RS.insert x rs1| we create a new mutable cell for |rs2|, and tell the mutable cell in |rs1| to notify the other cell of any changes. This means that now somewhere in |rs1| there is a reference to |rs2| -- exactly the other way around from what one would expect from the code. This reference prevents resources allocated for |rs2| from beeing freed while |rs1| is alive.
 
-This causes space leaks, where allocated resources are kept alive longer than expected or needed. As an extreme example, consider now this interaction
+This causes space leaks, where allocated resources are kept alive longer than expected or needed. As an extreme example, consider this interaction
 \begin{code}
 ghci> RS.get (RS.insert 42 RS.empty)
 fromList [42]
 \end{code}
 The call to |insert| allocates a new cell and registers it with the cell in |RS.empty|. But |RS.empty| is a \emph{static} value, and will never be garbage collected!
 
-To fix this, we notice that once we are done calculating a value (either because we query it using |get|, or because it is needed in the calculation of such a value), it will never change any further. So our propagator API allows “freezing“ a cell and dropping the connection to the depenent cells, and our pure wrapper freezes cells after the value is computed.
+To fix this, we notice that once we are done calculating a value (either because we query it using |get|, or because it is needed in the calculation of such a value), it will never change any further. So our propagator API allows “freezing“ a cell, which drops the references to the depenent cells, and the pure wrapper freezes cells after the value is computed.
 
 \section{Is this still Haskell?}\label{sec:pure}
 
@@ -710,25 +722,27 @@ The library presents itself with a innocent looking, pure and simple interface (
 Does this leak, or does programming with it still feel like programming Haskell?
 Is this really pure? Did we create a beautiful abstraction, or are the types a lie?
 
+In this section we discuss these questions, however without always being able to give a definite answer, and invite you to join the discussion.
+
 \subsection{What does purity even mean?}
 
-We found that this question is not easy to answer, because there does not exist a single, clear and widely accepted definition of “pure”.
+We found that this question is not easy to answer, because there does not exist a single, clear and widely accepted definition of “pure” functional programming.
 This paper is not the place to give an authoritative answer, so we look at various language properties commonly associated with a pure functional language in general and Haskell in particular,
 and see whether they still hold in the presence of our library
 
 \subsection{Type safety}
 
-Purity probably means little without memory and type safety, and we certainly want to preserve that property: What we get out of |RS.get| should really be a valid |Set|, and not some corrupted memory.
+Purity probably means little without memory and type safety, and we certainly want to preserve Haskell's safety properties: So what we get out of |RS.get| should really be a valid |Set|, and not some corrupted memory.
 
-It is not hard to break type safety with |unsafePerformIO|, especially when there are mutable references and polymorphism around. Nevertheless, we are fairly confident that our library is type and memory safe.
+It is not hard to break type safety with |unsafePerformIO|, especially when there are mutable references and polymorphism around. Nevertheless, we are fairly confident that we did not and that our library is type and memory safe.
 
 \subsection{No (observable) side effects}
 
-Our library uses |IO| inside, and clearly we would not consider it to be pure if inserting |42| into a set would make the computer eject the CD drive. Avoiding these blatant side effects is simple -- we just don't do it.
+Our library uses |IO| inside, and clearly we would not consider it to be pure if inserting |42| into a set would make the computer eject the CD drive. Avoiding such blatant side effects is simple -- we just don't do it.
 
-However, |RS.insert 42 rs| \emph{does} destructively modify mutable data structures inside |rs|. It is crucial that these changes stay internal to the library, and are not observable by the programmer. It must not affect the result the programmer gets via |RS.get rs|, nor any other \emph{observable} value. Again, we believe that this is the case.
+However, |RS.insert 42 rs| \emph{does} destructively modify mutable data structures inside |rs|. It is crucial that these changes remain internal to the library, and are not observable by the programmer. It must not affect the result the programmer gets via |RS.get rs|, nor any other \emph{observable} value. Again, we believe that this is the case, for the same reasons we believe we maintain referential transparency (\cref{sec:reftrans}).
 
-That the space leak issue of the naive implementation described in \cref{sec:spaceleak} is almost an issue of this kind: If we’d include space leaks in our notion of “observable behavior”, then that would be an example of such a side-effect issue.
+That the space leak issue of the naive implementation described in \cref{sec:spaceleak} is \emph{almost} an issue of this kind: If we’d include space leaks in our notion of “observable behavior”, then that would be an example of such a side-effect issue.
 
 \subsection{Evaluation order independence.}
 
@@ -741,9 +755,9 @@ ghci| in (RS.get s1, RS.get s2, RS.get s3)
 \end{code}
 we need to get the same result, no matter whether we evaluate the first component of the resulting tuple before the second, or the other way around, or even all in parallel in separate threads.
 
-Achieving this in our library required some care. Because we wrap our computation in |unsafePerformIO|, we have to expect any of them to happen at almost any time. Simple graph traversal methods, which simply mark a vertex as “done” before visiting its successors, easily go wrong when a second evaluation hits such a supposedly “done” vertex, while the first traversal is still processing the graph. Getting this to the point where it seems to be working was non-trivial, as mentioned in \cref{sec:thread}.
+Achieving this in our library required some care. Because our computation are triggered via |unsafePerformIO|, we have to expect any of them to happen at almost any time. Simple graph traversal methods, which simply mark a vertex as “done” before visiting its successors, easily go wrong when a second evaluation hits such a supposedly “done” vertex while the first traversal is still processing the graph. Getting this to the point where it seems to be working was non-trivial, as mentioned in \cref{sec:thread}.
 
-\subsection{Referential transparency}
+\subsection{Referential transparency}\label{sec:reftrans}
 
 Purity is usually understood to also imply referential transparency: If |x| is defined to be |e|, then we can replace an occurrence |x| with |e|, and vice-versa, without changing the meaning of the program.
 
@@ -866,6 +880,7 @@ Of course there is more to be done. On the practial side there are more data typ
 \bibliography{bib}
 
 \clearpage
+
 \appendix
 \section{The reflexivie transitive closure, pedestrian-style}\label{sec:imp}
 
@@ -880,5 +895,52 @@ rTrans3 g = M.fromList [ (v, S.toList (go S.empty [v])) | v <- M.keys g ]
                     |  otherwise          =  go (S.insert v seen) (g M.! v ++ vs)
 \end{code}
 
+\section{The imperative core -- implementation}\label{sec:impcoreimpl}
+
+In \cref{sec:impcore} we assumed a module exporting the following API:
+\begin{code}
+data Cell a
+newCell        ::                                      IO (Cell a)
+defCellInsert  ::  Ord a =>  Cell a -> a -> Cell a ->  IO ()
+getCell        ::            Cell a ->                 IO (Set a)
+\end{code}
+
+\noindent 
+A simple implementation could look like this:
+\begin{code}
+module Cell (Cell, newCell, defCellInsert, getCell) where
+
+import Control.Concurrent.MVar
+import qualified Data.Set as S
+
+data Cell a = MkCell { val :: MVar (S.Set a), onChange :: MVar (IO ()) }
+
+newCell :: a -> IO (Cell a)
+newCell = do
+    m <- newMVar S.empty
+    notify <- newMVar (pure ())
+    pure $ MkCell m notify
+
+getCell :: Cell a -> IO (S.Set a)
+getCell (MkCell m _) = readMVar m
+
+setCell :: Eq a => Cell a -> S.Set a -> IO ()
+setCell (MkCell m notify) x = do
+    old <- swapMVar m x
+    unless (old == x) $ join (readMVar notify)
+
+watchCell :: Cell a -> IO () -> IO ()
+watchCell (MkCell m notify) act =
+    modifyMVar_ notify (\a -> pure (act >> a))
+
+defCellInsert :: Ord a => Cell a -> a -> Cell a -> IO ()
+defCellInsert c1 x c2 = do
+    watchCell c2 update
+    update
+  where
+    update = do
+        x <- readCell p2
+        setCell c1 (f x)
+\end{code}
 
 \end{document}
