@@ -190,18 +190,18 @@ Haskell is a pure and lazy programming language, and this laziness allows us to 
 fibs :: [Integer]
 fibs = 0 : 1 : zipWith (+) fibs (tail fibs)
 \end{code}
-This is often called “knot-tying”, because a value (here |fibs|) has a definition involving itself.
+This is often called “knot-tying”, because a value (here |fibs|) has a definition involving this value.
 
 \subsection{Tying the knot with graphs}
 
-A maybe more practical example is the following calculation of the reflexive transitive closure of a graph, i.e.\ for each vertex the set of vertices reachable from it. Let's represent a graph as a map from vertices (of type |Int|) to lists of adjacent vertices, which we assume to be in the domain of the map (This keeps the examples concise, as then the lookup operator |M.!| won't fail):
+A maybe more practical example is the following calculation of the reflexive transitive closure of a graph, i.e.\ for each vertex the set of vertices reachable from it. Let us represent a graph as a map from vertices (of type |Int|) to lists of adjacent vertices, which we assume to be in the domain of the map (This keeps the examples concise, as then the lookup operator |M.!| won't fail):
 \begin{code}
-import qualified Data.Set as S
 import qualified Data.Map as M
+import qualified Data.Set as S
 type Graph = M.Map Int [Int]
 \end{code}
 
-Then the reflexive transitive closure can be very elegantly expressed by knot-tying a map from vertices to the set of reachable vertices:
+The reflexive transitive closure can be very elegantly expressed by knot-tying a map from vertices to their set of reachable vertices:
 \begin{code}
 rTrans1 :: Graph -> Graph
 rTrans1 g = M.map S.toList sets
@@ -209,7 +209,7 @@ rTrans1 g = M.map S.toList sets
     reaches :: M.Map Int (S.Set Int)
     reaches = M.mapWithKey (\v vs -> S.insert v (S.unions [ reaches M.! v' | v' <- vs ])) g
 \end{code}
-This code is remarkably close to the prosaic specification “the reachable vertices from a vertex |v| are |v| itself, plus all the vertices reachable from each of its successors |vs|”; hence we can call this code declarative.
+This code is remarkably close to the prosaic specification “the reachable vertices from a vertex |v| are |v| itself, plus all the vertices reachable from any of its successors |vs|”; hence we can consider this program to be \emph{declarative}.
 
 Note how the definition of |reaches| refers to itself -- we are “tying a knot”.
 
@@ -226,16 +226,16 @@ At least until our strict-language-using friend challenges us to add just one sm
 ghci> rTrans1 (M.fromList [(1,[2,3]),(2,[1,3]),(3,[])])
 fromList [(1,fromList ^CInterrupted.
 \end{code}
-Why does it fail? Because the graph now has a \emph{cycle} ($1 \to 2 \to 1$), and that makes our code get lost in an infinite loop, until we abort the program.
+Now the graph has a \emph{cycle} ($1 \to 2 \to 1$) which makes our code get lost in an infinite loop, until we abort the program.
 
-This is quite disappointing, because in order to handle recursive graphs as input, we now have to implement this in a much more tedious way, maybe with an explicit loop, keeping track of the set of seen vertices (see \cref{sec:imp} if you really want to see it, but the point is that you shoudn’t have to). It works, and most of us have likely written that idiom before, but we cannot impress our friend with that.
+This is quite disappointing! In order to handle recursive graphs as input as well, we have to implement this in a much more tedious way, maybe with an explicit loop, keeping track of the set of seen vertices (see \cref{sec:imp} if you really want to see it, but the goal is that you shouldn’t have to). It works, and most of us have likely written that idiom before, but we cannot impress our friend with that.
 
-But it seems we should: The declarative specification, from which we have derived |rTrans1|, holds for recursive graphs as well, so it does not seem that unreasonable to expect our code to handle recursive graphs as well. Where does it go wrong? The way we use the lazy map data structure is fine; it helps us to express the set of reachable vertices by way of other such sets.
-The problem is that the set data structure, with its operations |insert| and |union|, is not lazy enough: |union| needs to know the value of its arguments before it can produce something useful, and thus cannot be used in a recursive, knot-tying way.
+But it seems we should: The declarative specification, from which we have derived |rTrans1|, holds for recursive graphs as well, so it does not seem too unreasonable to expect the above code to handle recursive graphs as well. Where does it go wrong? The way we use the lazy map data structure is fine; it helps us to express the set of reachable vertices by way of other such sets.
+The problem is that the set data structure, with its operations |insert| and |union|, is not lazy enough: |union| wants to know the value of its arguments before it can produce something useful, and thus cannot be used in a recursive, knot-tying way.
 
 \subsection{We need better sets!}
 
-In this paper we present a data structure for sets, called |RSet|, where such recursive expressions do work! Its API is almost the same as that of |Set| from |Data.Set|. In particular, it consists of plain \emph{pure} functions -- no monads necessary. The fragment relevant for our example is:
+In this paper we present a data structure for sets, called |RSet|, where such recursive expressions do work! Its API is almost the same as that of |Set| from |Data.Set|. In particular, it also consists of plain \emph{pure} functions -- no monads necessary. The fragment of the API relevant for our example is:
 \begin{code}
 insert  :: Ord a =>  a -> RSet a  -> RSet a
 unions  :: Ord a =>  [RSet a]     -> RSet a
@@ -252,7 +252,7 @@ rTrans2 g = M.map (S.toList . RS.get) reaches
     reaches = M.mapWithKey (\v vs -> RS.insert v (RS.unions [ reaches M.! v' | v' <- vs ])) g
 \end{code}
 
-And indeed, now we \emph{can} handle recursive graphs, and get the correct result:
+And indeed, this \emph{can} handle recursive graphs, and get the correct result:
 \begin{code}
 ghci> rTrans2 (M.fromList [(1,[2,3]),(2,[1,3]),(3,[])])
 fromList [(1,[1,2,3]),(2,[1,2,3]),(3,[3])]
@@ -260,18 +260,17 @@ fromList [(1,[1,2,3]),(2,[1,2,3]),(3,[3])]
 
 \subsection{Contributions}
 
-From the user’s point of view, that’s almost all there is  to say: There is a library of types (sets, Booleans, maps) you can use like the conventional types, and suddenly your favorite knot-tying tricks work even better. In \cref{sec:exploration} we'll explore this library from the user's point of view, followed by a larger program analysis case-study (\cref{sec:casestudy}) , before taking a look at how it works under the hood (\cref{sec:impl}), discussing whether calling this \emph{pure} is actually warranted (\cref{sec:pure}) and finally taking a brief glance at related approaches (\cref{sec:related}).
+From the user’s point of view, that is almost all there is  to say: There is a library of types (sets, Booleans, maps) you can use like the conventional types, and suddenly your favorite knot-tying tricks work even better. In \cref{sec:exploration} we'll explore this library from the user's point of view, followed by a larger program analysis case-study in \cref{sec:casestudy}. Then we take a look at how the library works under the hood (\cref{sec:impl}), which calls for a discussion of whether calling this \emph{pure} is actually warranted (\cref{sec:pure}). Finally we take a brief glance at related approaches (\cref{sec:related}).
 
-\medskip
-
+\medskip\noindent
 The main contributions of this paper are:
 
 \begin{itemize}
-\item We show that by making more data types recursively definable, more problems can be solved elegantly and declaratively. They are \emph{safe} and \emph{pure} and are a natural fit for a language like Haskell.
+\item We demonstrate that by making more data types recursively definable, more problems can be solved elegantly and declaratively. They are \emph{safe}, \emph{pure} and are a natural fit for a language like Haskell.
 
-\item We describe the implementation with such variants of common data types (sets and Booleans, and extensible to more types), as a regular library using GHC's |unsafePerformIO| primitive under the hood.\footnote{The library can be found as \texttt{rec-def} on Hackage; an anonymized copy is included in this submission.}
+\item We show how to implement this as a regular library, using GHC's |unsafePerformIO| primitive under the hood.\footnote{The library can be found as \texttt{rec-def} on Hackage; an anonymized copy is included in this submission.}
 
-\item By wondering what it even means for a language to be considered \emph{pure} (let alone how to formally prove it), posing a challenge to the community.
+\item We discuss the difficulties of answering the question whether a language extension like this can still be considered \emph{pure}, contributing questions rather than conclusive answers.
 
 %\item observing, as a hopefully enlightening insight, that one of the main features of \emph{laziness} is that it allows more recursive equations to be solved, and thus more problems be expressed declaratively, and thus a the lazier the language, the more declarative.
 \end{itemize}
