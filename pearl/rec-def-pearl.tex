@@ -492,6 +492,7 @@ data Exp  =  Var V | Lam V Exp | App Exp Exp | Throw | Catch Exp
 \end{figure}
 
 Let us ignore |LetRec| at first, and write our analysis as a simple traversal of the AST:
+\nopagebreak
 \savecolumns
 \begin{code}
 canThrow :: Exp -> Bool
