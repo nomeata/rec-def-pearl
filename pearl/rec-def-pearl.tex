@@ -505,7 +505,7 @@ canThrow e = go M.empty e
         env'      = M.union env_bind env
 \end{code}
 
-Our language is lazy, so to determine whether evaluating a varible can throw,
+Our language is lazy, so to determine whether evaluating a variable can throw,
 we have to carry around an
 environment of type |M.Map V Bool| where we remember whether the corresponding right-hand side could throw. |Throw| and |Catch| certainly can resp.\ cannot throw. The analysis isn't higher order, so for lambdas we assume they can throw if their body can throw, and for applications if either subexpression can throw. Finally for |Let|, we extend the environment with the analysis result of the bound variable's right-hand side and descend.
 
@@ -580,9 +580,9 @@ GHC does this, as explained in \citet[Section 6.6]{modular}, but again at the co
 
 \item Another approach is to gather the full data flow problem from the \emph{whole} AST, solve it globally (thus also avoiding the problem mentioned in the previous bullet), and then distributing the analysis again to where we need it. This is reminiscent of how a constrained-based type inference algorithm works.
 
-It is a satisfying thought that this approach frees the solving algorithm from having to follow the syntactic nesting structure of the program, and that the repeated passes of the fixpoint iteratation do not have to traverse and re-analyze the AST over and over. Instead is only sees the pure, distilled data-flow equations.
+It is a satisfying thought that this approach frees the solving algorithm from having to follow the syntactic nesting structure of the program, and that the repeated passes of the fixpoint iteration do not have to traverse and re-analyze the AST over and over. Instead is only sees the pure, distilled data-flow equations.
 
-There are, however, petty practical issues with this approach (representing the equations as data, uniquely nameing the cells, the separate passes for collecting the equations and using the results).
+There are, however, petty practical issues with this approach (representing the equations as data, uniquely naming the cells, the separate passes for collecting the equations and using the results).
 At this point, one is likely going to hide this bookkeeping in a suitable monad, which can recover some of the lost elegance, but if the code could otherwise be written as pure functions, that is still quite a price to pay.%
 \footnote{See \url{https://hackage.haskell.org/package/datafix-0.0.1.0/docs/Datafix-Denotational.html\#v:datafix} for an attempt.}
 \end{itemize}
@@ -693,7 +693,7 @@ The dejafu test library \citep{dejafu}, which can exhaustively explore all possi
 
 \subsubsection{Modularity.}
 
-The naive code above supports just one value type, |Set|, because the underlying imperative propagator library |Cell| only supports that type. The full library abstracts over the underlying propagator. This way we can have recursively defined values of different types (|RSet a|, |RBool|), operations connecting them (e.g.\ |member|) and even allow solving heterogenously typed sets of equations.
+The naive code above supports just one value type, |Set|, because the underlying imperative propagator library |Cell| only supports that type. The full library abstracts over the underlying propagator. This way we can have recursively defined values of different types (|RSet a|, |RBool|), operations connecting them (e.g.\ |member|) and even allow solving heterogeneously typed sets of equations.
 
 Supporting different propagator libraries also opens the way for important performance optimizations that are specific to various value types. The most generic propagator implementation assumes no structure on its values besides equality, and just keeps propagating changes until the graph has stabilized. But if we can have different propagator implementations for different types, smarter propagator libraries can be written.
 
@@ -705,7 +705,7 @@ Similarly, a propagator library for finite sets can propagate just deltas, inste
 
 Another, maybe subtle, problem with our pure wrapping of an imperative propagator library is that it can easily lead to space leaks.
 
-Consider the |insert| function. With |rs2 = RS.insert x rs1| we create a new mutable cell for |rs2|, and tell the mutable cell in |rs1| to notify the other cell of any changes. This means that now somewhere in |rs1| there is a reference to |rs2| -- exactly the other way around from what one would expect from the code. This reference prevents resources allocated for |rs2| from beeing freed while |rs1| is alive.
+Consider the |insert| function. With |rs2 = RS.insert x rs1| we create a new mutable cell for |rs2|, and tell the mutable cell in |rs1| to notify the other cell of any changes. This means that now somewhere in |rs1| there is a reference to |rs2| -- exactly the other way around from what one would expect from the code. This reference prevents resources allocated for |rs2| from being freed while |rs1| is alive.
 
 This causes space leaks, where allocated resources are kept alive longer than expected or needed. As an extreme example, consider this interaction
 \begin{code}
@@ -714,7 +714,7 @@ fromList [42]
 \end{code}
 The call to |insert| allocates a new cell and registers it with the cell in |RS.empty|. But |RS.empty| is a \emph{static} value, and will never be garbage collected!
 
-To fix this, we notice that once we are done calculating a value (either because we query it using |get|, or because it is needed in the calculation of such a value), it will never change any further. So our propagator API allows “freezing“ a cell, which drops the references to the depenent cells, and the pure wrapper freezes cells after the value is computed.
+To fix this, we notice that once we are done calculating a value (either because we query it using |get|, or because it is needed in the calculation of such a value), it will never change any further. So our propagator API allows “freezing“ a cell, which drops the references to the dependent cells, and the pure wrapper freezes cells after the value is computed.
 
 \section{Is this still Haskell?}\label{sec:pure}
 
@@ -770,7 +770,7 @@ This restriction to fixpoints, i.e.\ to solutions of a set of equations, puts a 
 
 Referential transparency is a crucial ingredient to equational reasoning: rewriting the code according to a set of rules, while preserving its meaning. Beyond just replacing |x| with its definition |e| (also called \emph{unfolding} or \textdelta-reduction) are further program transformations that we expect to preserve semantics. They may be applied by optimizing compiler, used in program verification or simply by a programmer trying to understand the meaning of some code.
 
-Ideally, all program transformations that are meaning-preserving in pure Haskell would still meaning-preserving in the presence of our library. Unfortuately, this is not the case: Lambda lifting can turn terminating programs into non-terminating ones.
+Ideally, all program transformations that are meaning-preserving in pure Haskell would still meaning-preserving in the presence of our library. Unfortunately, this is not the case: Lambda lifting can turn terminating programs into non-terminating ones.
 
 In general in Haskell, if we have a recursive value definition involving an expression |e|, it is ok to turn that into a recursive function definition abstracting over that expression: We can go from
 \begin{code}
@@ -788,11 +788,11 @@ ghci> let rs y = RS.insert y (rs y) in RS.get (rs 42)
 fromList ^CInterrupted.
 \end{code}
 
-This is not a simple infelicity of the current implementation, but a fundamental limitation: In the original program, our library can get its (magic, |unsafePerformIO|-powered) hands on a \emph{finite} graph of recursively defined values. In the transformed program there is now a recursive function that endlessly creates \emph{new} values, and our library will never see a complete set of equations. It seems that no (reasonable) implementation of the interface in \cref{fig:api} can solve this problem. (By this reasonsing we also deduce that a pure implementation of that interface indeed does not exist.)
+This is not a simple infelicity of the current implementation, but a fundamental limitation: In the original program, our library can get its (magic, |unsafePerformIO|-powered) hands on a \emph{finite} graph of recursively defined values. In the transformed program there is now a recursive function that endlessly creates \emph{new} values, and our library will never see a complete set of equations. It seems that no (reasonable) implementation of the interface in \cref{fig:api} can solve this problem. (By this reasoning we also deduce that a pure implementation of that interface indeed does not exist.)
 
 So does this invalidate our claims that we built a beautiful, well-behaved, pure abstraction? In the end that depends on your expectation: Do you expect that in a pure and lazy language lambda-lifting preserves meaning, including termination? Or is that an additional property of some languages, which we can maybe do without?
 
-As you ponder this question, note that if you include (asymptotic) resource usage in your expectation of program equivalence, then such lambda-lifting is already rather dangerous in Haskell: The nice and fast knot-tied |fibs| from the introduction becomes horribly inefficient once you turn it into a recursive \emph{function} (|let fibs x y = x : y  : zipWith (+) (fibs x y) (tail (fibs x y))|). Because the lamda-lifting transformation is only an equivalence as long as we ignore (asymptotic) complexity, it seems that breaking that equivalence is not too wicked.
+As you ponder this question, note that if you include (asymptotic) resource usage in your expectation of program equivalence, then such lambda-lifting is already rather dangerous in Haskell: The nice and fast knot-tied |fibs| from the introduction becomes horribly inefficient once you turn it into a recursive \emph{function} (|let fibs x y = x : y  : zipWith (+) (fibs x y) (tail (fibs x y))|). Because the lambda-lifting transformation is only an equivalence as long as we ignore (asymptotic) complexity, it seems that breaking that equivalence is not too wicked.
 
 \Citet[Fact 3.7]{sabry} points out that merely changing the set of observational equivalences does \emph{not}, in general and on its one, imply that the extended language is no longer pure.
 
@@ -872,7 +872,7 @@ Monotonicity is crucial for the existence and uniqueness of a solution (\cref{se
 
 We saw that we can extend Haskell with the ability to solve recursive equations involving Boolean and sets, that this extension can be implemented as a library, and that this extension -- arguably -- preserves the nice properties of the language.
 
-Of course there is more to be done. On the practial side there are more data types and operations to be included in the library (natural numbers in various ordering, maps). On the theoretical side, a more rigorous, formal approach to the question of whether this is actually safe and pure is worth pursuing, as is finding a denotational way to describe what the library do.
+Of course there is more to be done. On the practical side there are more data types and operations to be included in the library (natural numbers in various ordering, maps). On the theoretical side, a more rigorous, formal approach to the question of whether this is actually safe and pure is worth pursuing, as is finding a denotational way to describe what the library do.
 
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{bib}
@@ -880,7 +880,7 @@ Of course there is more to be done. On the practial side there are more data typ
 \clearpage
 
 \appendix
-\section{The reflexivie transitive closure, pedestrian-style}\label{sec:imp}
+\section{The reflexive transitive closure, pedestrian-style}\label{sec:imp}
 
 In the introduction we mentioned that without the data structure presented in this paper, a programmer likely has to write their reflexive-transitive-closure code with an explicit loop (a tail-recursive |go| function), explicitly keeping track of seen vertices to avoid running in circles:
 \begin{code}
