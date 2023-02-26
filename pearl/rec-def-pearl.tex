@@ -30,6 +30,9 @@
 %format qualified = "\StyleKW{qualified}"
 %format as = "\StyleKW{as}"
 
+% highlight this as non-code
+%format CInterrupted            = "\StyleAbort{CInterrupted}"
+
 % all modules
 %format M                       = "\StyleMod{M}"
 %format RS                      = "\StyleMod{RS}"
@@ -94,6 +97,7 @@
 \definecolor[named]{friendlyfunction}{HTML}{06287e}
 \definecolor[named]{friendlyexception}{HTML}{007020}
 \definecolor[named]{friendlyattribute}{HTML}{4070a0}
+\definecolor[named]{abortcolor}{HTML}{B80600}
 
 \newcommand{\StyleKW}[1]{\textbf{\textcolor{friendlykw}{#1}}}
 \newcommand{\StyleVar}[1]{#1}
@@ -101,6 +105,7 @@
 \newcommand{\StyleType}[1]{\textcolor{friendlyexception}{#1}}
 \newcommand{\StyleCon}[1]{#1}
 \newcommand{\StyleConstr}[1]{\textcolor{friendlyfunction}{#1}}
+\newcommand{\StyleAbort}[1]{\textbf{\textcolor{abortcolor}{#1}}}
 
 % Ubuntu Light for code
 \usepackage{fontspec}
@@ -281,7 +286,7 @@ We like to thanks Sebastian Graf and Claudio Russo for their helpful comments.
 
 \section{Exploration}\label{sec:exploration}
 
-In the introduction we have used a data type |RSet| with an API that resembles that of the |Set| data structure in Haskell's |Data.Set| library. Let us explore this data structure some more from the user's point of view, to get a better understanding of how it is different from the vanilla |Set|, and to whet the appetite for the look at its implementation in a subsequent section.
+In the introduction we have used a data type |RSet| with an API that resembles that of the |Set| data structure in Haskell's |Data.Set| library. Let us explore this data structure some more from the user's point of view, to get a better understanding of how it is different from the vanilla |Set|, and to whet the appetite for the look at its implementation in \cref{sec:impl}.
 \Cref{fig:api} gives a comprehensive overview of the API.
 
 \subsection{Just an isomorphic copy?}
