@@ -1,0 +1,52 @@
+Thanks for the kind and the critical words alike.
+
+I am not surprised that Section 5 draws most of the criticism; I fully agree that it is not a satisfying affair. A full formal treatment is unfortunately beyond my skills and resources; as much as I’d like to be able to submit a paper that contains a denotational semantics for this extended language, or a precise account and proof of which contextual equivalences are preserved by this addition. So if the paper is better off without Section 5 (or condensed to a brief paragraph), I’ll gladly make that revision.
+
+With that, allow me to address your individual questions (and I hope quoting them does not count towards the word limit).
+
+> A: Can you please comment more on the relationship between this work and that of Arnztenius & Krishnaswami?
+
+Thanks for pointing out Hatafun, which I have not seen before. I’d say the main difference is that Hatafun still requires the programmer to use an explicit fixed-point operator (`fix` and `fix'`), where with rec-def you can use `let`. This may seem a minor difference in small examples, but becomes a game changer in bigger examples, as I tried to show in the case study in Section 3.
+
+> A: In this paper, you have focused on the fixed point theorem for monotone functions on posets of finite height. Another fixed point theorem concerns Scott-continuous functions on directed-complete posets, with no height restriction at all. I am curious if you have any comments about the trade-offs between these two approaches; are there types in your library whose intrinsic orders are not directed-complete, or are there functions in your library that are monotone but not Scott-continuous? If not, I wonder if this could help with the issue that you describe at the top of page 7 concerning the fact that `RSet` is precisely an example of a type whose order has infinite height.
+
+I’d say the problem with using Scott-continuity is that it may not help if a fixed-point exists, but cannot be found by the underlying imperative solver in a finite number of steps. In that sense `Data.Set` is not directed-complete: The sets `S.fromList [1..n]` are ordered, but the limit is not expressible in type of finite sets. OTOH, if someone hands me an (imperative) solver for such equations, then my library can wrap it in a pure API.
+
+> A: In section 5.6, you discuss the fact that lambda lifting does not preserve the meanings of programs written using your library. Is there a flag to ensure that GHC does not apply the lambda lifting transformation? What is your recommendation for programmers who may want to use your library?
+
+There are a variety of flags one could use (`-fno-full-laziness`, `-no-fstg-lift-lams`). I would recommend to allow lambda lifting: GHC will not break sharing, so it will not break your carefully crafted rec-def-based knot-tied program. It could introduce additional sharing, and thus “unbreak” your program if it didn’t have enough sharing -- but that’d fine, I’d say.
+
+> A: What are your thoughts on how to accommodate the mix of monotone and non-monotone functions in semantics? Do you have some ideas?
+
+None that worked so far. It seems a denotational semantics for the whole thing has to juggle two orders (Haskell's regular order and the order that the rec-def fixed-point solver works with), and maybe different fixed-point operators for `letrec`-with-sharing and otherwise… to me, it’s still an open problem. (Is there even a denotational semantics that can distinguish between tied knots and untied knots?)
+
+> B: 1. Could you comment on the time and space performance implications of your library? Since you have already made significant use of QuickCheck and DejaFu, I suspect you're not too far from having some numbers available for comparison.
+
+> D: Are there more case studies that can evaluate the time/memory requirements of the two library alternatives?
+
+I have not done any performance measurements, and I doubt that meaningful numbers are easy to obtain. The underlying solver (the propagator) is not very optimized, and since the main idea of the paper is the wrapping of _any_ equation solver into pure fragment, a meaningful experiment would have to be set up so that the cost of the underlying solver is kept separate from the wrapping. Furthermore, it is unclear what would constitute a realistic workload.
+
+> B: 2. Could you explain your "which will be executed once per value" remark in Sec. 6.2? This is certainly not obvious to me. Just a combination of "insert" and "get" will already have two calls to unsafePerformIO, no?
+
+
+Right, this formulation was misleading. More precisely: A thunk `let x = unsafePerformIO a in …`, the IO action `a` is executed at most once, no matter how often the thunk `x` is used (possibly raced by different threads, possibly even from `a` again). This is an important difference to GHC’s `unsafeDupablePerformIO`, which does not have this guarantee.
+
+> C: Is it really about insufficiently lazy datatypes?
+
+You are making good points: A different, still pure, implementation than `Data.Set` can have a lazy union operation (as you write) -- but doesn’t that just kick the can down the road, and the `member` operation wouldn’t always work?
+
+The statement about the actual `Data.Set.union`, which is strict, is still true: For any strict `f` the expression `let x = f x in x` will be bottom.
+
+> C: What about greatest fixpoints for sets?
+
+Should be easy to add, either using a datatype for co-finite sets, or even a datatype for finite-or-cofinite sets.
+
+> C: What kind of equality do you mean for evaluation order independence?
+
+Good point! I must be meaning the abstract equivalences between sets. Trying to think how someone could observe different evaluation orders by using a value with an “illegal” `Ord` instance makes my head hurt, but I must assume it is possible.
+
+> D: Why do we care if the library is still Haskell, since this question is not well defined anyways.
+
+Maybe the question needs to be rephrased, but it seems relevant for developers using an `unsafePerformIO`-using library which properties and guarantees of the language they still can rely on, and which are thrown out?
+
+
