@@ -1,0 +1,306 @@
+ICFP 2023 Paper #80 Reviews and Comments
+===========================================================================
+Paper #80 Functional Pearl: More fixpoints!
+
+
+Review #80A
+===========================================================================
+
+Overall merit
+-------------
+B. Weak accept
+
+Reviewer expertise
+------------------
+Y. Knowledgeable
+
+Reviewer confidence
+-------------------
+1. High
+
+Paper summary
+-------------
+Haskell's brand of lazy functional programming is famous for facilitating beautiful circular implementations of familiar algorithms by means of a "knot tying" trick. Although this trick works well for simple examples (like generating Fibonacci numbers or primes), it tends to fall down somewhat quickly when used in realistic code because the operations of many standard data structures are insufficiently lazy. As a result, a circular definition may result in divergence when an overly strict subroutine is used (e.g. the `union` operation of `Data.Set`).
+
+The idea of the present paper is to replace certain standard data structures with lazier versions; the key idea here is *monotonicity*, which guarantees good solutions to the fixed point equations describing these circular definitions. The library is implemented under the hood using `unsafePerformIO`, but its observable behavior seems to be functional (this is not proved, but it seems at least plausible — but it seems there are no compelling ideas for a path to a proof).
+
+Comments for authors
+--------------------
+# Overall evaluation
+
+I found this paper very interesting. Lazy functional programming is an arcane art, but when it is done right, it brings you into contact with beautiful order-theoretic and topological (i.e. domain theoretic) ideas. I would have loved to see in this paper a more explicit connection with domain theory or any form of semantics to complement the imperative Haskell implementation.
+
+The downside of this paper is the lack of attention to semantics or justification of the interesting engineering work on display here. This paper raises a lot of questions (like "is this interface pure up to observable equivalence"?) that we do not have the tools to answer today, but it is hard to advocate for a library like this when basic questions like this are so far out of reach. In Section 5, 
+there is philosophical discussion of the meaning of purity, but what we need is mathematical discussion.
+
+At this point, although there is some compelling empirical evidence that the code does what we think it does, there is just not much mathematical evidence for this; there are also some mismatches between the implementation and what one would expect in any semantic version, including the presence of `RS.id` which gives one pause.
+
+I did like this paper, and found the engineering result really cool. I am still on the fence as to whether the result is polished enough to be a pearl, but I am excited about the ideas and look forward to hearing the author's comments in response.
+
+# Comments on semantic / domain-theoretic connections
+
+- In this section, I will make a few comments and suggestions that could help bring your work more closely into contact with the domain theoretic ideas that seem to be lurking underneath it.
+- On page 5, you note that `RS.mk . RS.get` is not the identity function; this is true, as you say, but I think maybe you can say more. In particular, it seems that `RS.mk -| RS.get` ought to form an *embedding-projection pair* (i.e. a coreflective adjunction) in whatever suitable order-enriched category of domains or pointed posets you consider: in other words, `RS.mk` should be a section of `RS.get` (i.e. `RS.get . RS.mk = id`) and on the other hand, I would expect we have `RS.mk . RS.get <= id`.
+- In section 2.4, your ordered booleans are cool! From a domain theoretic, your ordered booleans are, when equipped with the Scott topology, exactly the **Sierpiński space**. From this point of view, your disjunction operation `RB.(||)` is a form of **parallel computation**.
+- Regarding the discussion of the lambda-lifting transformation in section 5.6, I would say that this is a problem that would really strongly benefit from a more semantic/denotational design perspective than the current implementation-focused design perspective. I think that without semantics, it would be hard to satisfactorily get to the bottom of the question of what kind of program optimizations remain correct in the setting of "extremely lazy" functional programming.
+- Finally, I refer you to the "Questions" section of my review for some commentary about monotonicity and continuity.
+
+# Comments on related work
+
+- I would have loved to see some comparison with LVars (Kuper and Newton). It seems that these may be addressing different problems, but there is this important idea of monotone updates — and you exploit that idea in your propagator (as mentioned on page 12).
+- Regarding Datafun (Arntzenius and Krishnaswami), it is true that your work is a little different because you are integrating a feature into an existing fully-featured programming language as a library rather than implementing an entirely new language, as you say.  But there are apparently embeddings of Datafun into Haskell, e.g. this one on GitHub: https://github.com/yihozhang/Hatafun. Could you offer some more detailed comparison of approaches?
+- In section 5.10, you refer to the work of Timany et al on proving that `runST` is pure. This is indeed really nice work, but it seems significantly more difficult to adapt that kind of result to your imperative implementation (which has some quirks!) than it would be try and figure out what the actual semantics of this idea are.
+
+# Minor comments
+
+- In what follows, I will go page-by-page with some minor comments and questions.
+- On page 1, I think you meant to write `M.map S.toList reaches` rather than `M.map S.toList sets`.
+- On page 2, I found the phrasing of the paragraph beginning with "But it seems we should" a bit difficult to understand. What is the reference of "should"? But I understood the broader point of this paragraph, and found myself in agreement.
+- I found the progression of the subsections within Section 2 to be excellent — I kept finding myself about to ask a question or raise an objection, which was then immediately dealt with (e.g. as in section 2.3, Fixpoints).
+- On page 5, "drops us into the world of vanilla set" should probably be "drops us into the world of vanilla sets". By the way, I find the use of the adjective "vanilla" a little awkward in this context, maybe you could use another word instead? "Ordinary" comes to mind.
+- At the top of page 11, it took me a few minutes to understand the type of `defCellInsert` because I did not remember at first that you need to take two `Cell a` arguments --- one for the input and one for the output. This makes perfect sense since you are describing an imperative implementation of a persistent interface, but I think it could help the reader if you reiterated this when explaining the API.
+- On page 12, you mention that the `dejafu` library was very helpful in identifying concurrency bugs in your implementation attempts. Just to make sure, you did eventually pass the tests? If so, maybe it would be good to just mention it here.
+- In section 5.9, you mention that "Unlike usual call-by-name semantics for pure functional programming languages, it must be possible to be able to tell knot-tying recursion apart from unrestricted recursion".
+	- First, it should be noted that Haskell's semantics are *not* call-by-name: a call-by-name semantics interprets every type as an algebra for the lifting monad, and the algebra structure on product types `(A,B)` is inherited from the algebra structures on `A` and on `B`, and likewise the algebra structure on `A -> B` is inherited from the algebra structure on `B`. This is not, however, how Haskell works: to the extent that any fragment of Haskell has a denotational semantics, this fragment models `(A,B)` and `A->B` as *free* algebras on the cartesian product and the exponential respectively. It is in this sense that Haskell does not really fit into the mould of the usual semantic dichotomy between call-by-value and call-by-name.
+	- I did not fully understand the remark about telling apart the two kinds of recursion. But this seems related to a question I have, namely whether you think that any denotational semantics must necessarily have two different "order" layers, because it must account for non-monotone functions like `RB.get`. In that case, it seems like the distinction between two kinds of recursion that you are talking about here is really about the question of with respect to which of two possible orders a given function is monotone (or continuous) for. Is this the right idea?
+
+Questions for authors’ response
+-------------------------------
+- Can you please comment more on the relationship between this work and that of Arnztenius & Krishnaswami? I quote my question below:
+
+> Regarding Datafun (Arntzenius and Krishnaswami), it is true that your work is a little different because you are integrating a feature into an existing fully-featured programming language as a library rather than implementing an entirely new language, as you say.  But there are apparently embeddings of Datafun into Haskell, e.g. this one on GitHub: https://github.com/yihozhang/Hatafun. Could you offer some more detailed comparison of approaches?
+
+- In this paper, you have focused on the fixed point theorem for monotone functions on posets of finite height. Another fixed point theorem concerns Scott-continuous functions on directed-complete posets, with no height restriction at all. I am curious if you have any comments about the trade-offs between these two approaches; are there types in your library whose intrinsic orders are not directed-complete, or are there functions in your library that are monotone but not Scott-continuous? If not, I wonder if this could help with the issue that you describe at the top of page 7 concerning the fact that `RSet` is precisely an example of a type whose order has infinite height.
+- In section 5.6, you discuss the fact that lambda lifting does not preserve the meanings of programs written using your library. Is there a flag to ensure that GHC does not apply the lambda lifting transformation? What is your recommendation for programmers who may want to use your library?
+- The function `RB.get` is evidently not monotone, which is why I assume you say you should only use it on the outside of your code. I suppose that likewise, `RS.get` is not monotone either because ordinary sets are discrete. What are your thoughts on how to accommodate the mix of monotone and non-monotone functions in semantics? Do you have some ideas?
+
+
+
+Review #80B
+===========================================================================
+* Updated: 8 May 2023 1:31:32am AoE
+
+Overall merit
+-------------
+C. Weak reject
+
+Reviewer expertise
+------------------
+Y. Knowledgeable
+
+Reviewer confidence
+-------------------
+1. High
+
+Paper summary
+-------------
+This paper introduces a Haskell library for a few basic data structures that are "more productive" in the presence of recursive definitions, allowing more programs to be defined in self-recursive style. The library appears pure but uses unsafePerformIO under the hood.
+
+Comments for authors
+--------------------
+This paper is clear and well written, but, in its current form, I do not think it is a functional pearl. Pearls should be "elegant" and "nifty", but the library described in this paper, in some places, looks like a practical hack with significant shortcomings and semantic unknowns. Unfortunately, I do not think it can be easily converted into a regular research paper either, because the contribution is not significant enough.
+
+My main concerns with the paper are:
+
+* The data structure libraries introduced are not meant to supplant the existing ones. They have significant limitations in their API, and a user would have to carefully decide when to use e.g. RSet vs Set. Furthermore, RBool and RDualBool share a lot of common code, and something like RNat would probably need even more variants, hinting at some missed opportunity for abstraction and generalisation.
+
+* The use of unsafePerformIO under the hood is not problematic per se, but its implications are not fully understood (or explained). The expression "fairly certain / confident" appears four times in Sec. 5; while I appreciate the honesty, an elegant presentation requires more than this. Even the known limitation described in Sec. 2.7 is already quite disappointing -- only expert users will know when and where to introduce the necessary identity functions. I'm afraid I can't offer a solution to this problem, but right now this is not really an elegant functional pearl.
+
+* Sec. 5 feels out of place. Some of its contents are relevant and useful, in that they analyse properties of the library (although unfortunately the analysis often does not come to a definitive conclusion). But the question "is this still Haskell?" needs only a one-word answer, not an entire section. This is obviously a Haskell library, using unsafePerformIO to hide certain effects, like many libraries do. So I'd recommend rewriting this section from a different perspective, and dropping parts like Sec. 5.8 and 5.9.
+
+Minor points:
+
+Just before Sec. 1.1, "this value": use "itself" instead?
+
+Code at end of page 1: I think "sets" should be "reaches" instead.
+
+Sec. 1.2, "see Appendix A if you really want to see it": I do want to see it, and I think it should not be hidden away in an Appendix. Space is not a concern since you are well under the page limit. It is only two lines longer, it works without caveats, and its tail-recursive structure makes it easy to reason about its performance.
+
+Sec. 1.4: I do not find the third contribution valid. For starters, this is not a " language extension", it's a library using only existing Haskell functionality. So essentially the question is whether some Haskell code using unsafePerformIO can be considered pure -- and I don't think adding more questions around that topic can be considered a contribution.
+
+Sec. 3.3: perhaps add one sentence to explain what this section is about -- I think right now this isn't clear until you read the whole section.
+
+Sec. 5.1: missing period at the end of the paragraph.
+
+Sec. 5.4: there should be no period in the section title.
+
+Just before Sec. 5.7: on its *own*
+
+Sec. 6.1: I do not understand the "as there is much interesting than can be said and done here" part, feels like some word might be missing somewhere.
+
+Questions for authors’ response
+-------------------------------
+1. Could you comment on the time and space performance implications of your library? Since you have already made significant use of QuickCheck and DejaFu, I suspect you're not too far from having some numbers available for comparison.
+
+2. Could you explain your "which will be executed once per value" remark in Sec. 6.2? This is certainly not obvious to me. Just a combination of "insert" and "get" will already have two calls to unsafePerformIO, no?
+
+
+
+Review #80C
+===========================================================================
+
+Overall merit
+-------------
+A. Accept
+
+Reviewer expertise
+------------------
+X. Expert
+
+Reviewer confidence
+-------------------
+1. High
+
+Paper summary
+-------------
+Fancy knot-tying programs like the one-liner for the infinite sequence of Fibonacci numbers sometimes work fine in a lazy language like Haskell; but sometimes they don't. This is because letrec sometimes computes the fixpoint you had in mind, but sometimes doesn't. Working out when it does involves tricky reasoning about productivity. This pearl presents a technique based on computing fixpoints of monotone functions on pointed partial orders of finite height, which (almost completely) avoids having to worry about productivity.
+
+It's neatly done: the key idea can be cleanly expressed using `MVar`s and `unsafePerformIO`; there's a lot of further engineering required to make it thread-safe etc, which is only sketched in the paper (but the full code is available); there's a detailed and interesting discussion about whether this is still "pure", and what that might mean (tl;dr: it's complicated).
+
+Comments for authors
+--------------------
+You say (p2) that the problem with plain sets is that insertion and union are "not lazy enough: `union` wants to know the value of its arguments before it can produce something useful". That was my first guess too, but I'm no longer so sure. What happens if you try your graph closure with ordinary built-in lists instead of sets, using cons and concat, and not bothering to check for duplicates? The acyclic graph works fine. I expected the cyclic graph to be productive, albeit to yield infinite lists of reachable vertices; but it gets just as stuck as your `rTrans1`, and isn't productive at all. That's not on account of cons and concat being too strict. The problem must be somewhere else.
+
+In fact, what your approach lets you do is construct a set of recursive equations in variables of some suitable type and still compute a fixpoint: provided that the values are ordered, the function is monotonic, and the height is bounded. After all, that's why your boolean example works too: I don't think it's correct to say that you've made a "lazy enough" implementation of the booleans themselves, have you?
+
+You sketch the dual lattice of booleans (p6). There is a dual lattice for sets too, in which you might hope to get a greatest fixpoint (useful for coinduction and bisimulation arguments, for example). Might that work too?
+
+Are the results you get under different evaluation orders (p14) abstractly the same as sets, or concretely the same by their underlying representation? That is, might you see a difference between `fromList [1,2,3]` and `fromList [3,2,1]`? Would these be considered the same in the context of your "unique fixpoint"? Do you assume that the `Ord` instance actually is a partial order (as the library spec requires)?
+
+## Minor points
+
+It's a pity that you didn't turn on the "review" option, so I have no line numbers. You'll have to hunt for the locations yourselves.
+
+* p1: The local declaration in `rTrans1` is of `reaches`, but the use is `sets`
+
+* p2: The acyclic and cyclic graph examples might benefit from pictures.
+
+* p3: You should say that `Data.Set` is a datatype of *finite* sets, and so is your `RSet`. That's not transparently obvious, especially to a non-Haskell audience.
+
+* p5: "even obtain a non-bottom result" (in Haskell semantics, you will necessarily "get a result", even if it is bottom and the program falls into an infinite loop)
+
+* p13: You don't "eject the CD drive" (I hope!), you eject a disk from said drive.
+
+* p17: You might also mention Andy Gill's "Type-Safe Observable Sharing" (Haskell 2009)
+
+## Grammar etc
+
+* p7: "only finitely many possible"
+
+* p7: "takes a list of declarations (each with a name and definition)" would be less awkward
+
+* p10: "Instead it only sees"
+
+* p14: I suggest "Note that the space leak..."
+
+* p14: I suggest "to understand the meaning or improve the structure of"
+
+* p15: "on its own"
+
+* p15: "willy-nilly"
+
+* p16: "non-terminating"
+
+* p16: Proper double quotes around "pure"
+
+* p16: Either "does not yet cover X or Y" or "as yet covers neither X nor Y"
+
+* p20: I would try to squeeze this all onto one page. The `Cell` datatype and `watchCell` function could each be turned into one-liners. If you still need to save one more line, I would delete the type signature for `go`.
+
+Questions for authors’ response
+-------------------------------
+Is it really about insufficiently lazy datatypes?
+
+What about greatest fixpoints for sets?
+
+What kind of equality do you mean for evaluation order independence?
+
+
+
+Review #80D
+===========================================================================
+
+Overall merit
+-------------
+B. Weak accept
+
+Reviewer expertise
+------------------
+Y. Knowledgeable
+
+Reviewer confidence
+-------------------
+2. Medium
+
+Paper summary
+-------------
+The paper presents the recursive library that defines recursive operations on sets and booleans, using productive definitions. First, it introduces the problem of the standard libraries for sets and bools can lead to infinite loops. Then, it showcases that the operators on the recursive library have the same behavior (via testing) but do not loop and provides a bigger case study of program analysis. Next, it describes the implementation of the library and discuss its purity.
+
+Comments for authors
+--------------------
+Pros: 
++ well written 
++ well explained problem 
++ elegant solution 
++ full of examples 
++ simple library presentation 
+
+Cons: 
+- the "Is it Haskell" discussion is not technical (it is full of beliefs) and it does not seems to be needed 
+- There are not enough case studies
+- There is no discussion about time/memory requirement of the two alternative libraries 
+
+
+I enjoyed reading this paper and it seems to have many of the requirements of a Pearl.
+It addresses a very specific problem, with an elegant solution. The writing is clean, witty, and sentences and titles are very carefully chosen. I also appreciated the clean explanation of the library implementation. 
+
+But, I found section 5 very weak for two main reasons. First, it reads very uncertain and not technical, for example the word "believe" is used a lot. It seems that this was done on purpose since it appears more like a discussion and purity is not well defined anyways. Second, esp. since it is an informal discussion, this section is not well motivated: why do we care so much that the library is still "pure" to devote such a long space on this discussion. 
+I believe that if this section gets shrunk and more case studies or a time/memory comparison with the standard libraries is added, the paper will be much stronger. 
+
+I really enjoyed reading the paper until sect 5. That section is not technical (has words like belive) and does not seemed polisehd for a pearl. 
+
+
+As a minor comment, at 2.4 the reference to booleans did not make sense, and only got clarified in section 3.2 with the example. 
+Small typo: beginning of sec 3 says "let us conclude that section"
+
+Questions for authors’ response
+-------------------------------
++ Why do we care if the library is still Haskell, since this question is not well defined anyways. 
++ Are there more case studies that can evaluate the time/memory requirements of the two library alternatives?
+
+
+
+Author Response by Joachim Breitner <mail@joachim-breitner.de> (1023 words)
+---------------------------------------------------------------------------
+Thanks for the kind and the critical words alike.
+
+I am not surprised that Section 5 draws most of the criticism; I fully agree that it is not a satisfying affair. A full formal treatment is unfortunately beyond my skills and resources; as much as I’d like to be able to submit a paper that contains a denotational semantics for this extended language, or a precise account and proof of which contextual equivalences are preserved by this addition. So if the paper is better off without Section 5 (or condensed to a brief paragraph), I’ll gladly make that revision.
+
+With that, allow me to address your individual questions (and I hope quoting them does not count towards the word limit).
+
+> A: Can you please comment more on the relationship between this work and that of Arnztenius & Krishnaswami?
+
+Thanks for pointing out Hatafun, which I have not seen before. I’d say the main difference is that Hatafun still requires the programmer to use an explicit fixed-point operator (`fix` and `fix'`), where with rec-def you can use `let`. This may seem a minor difference in small examples, but becomes a game changer in bigger examples, as I tried to show in the case study in Section 3.
+
+> A: In this paper, you have focused on the fixed point theorem for monotone functions on posets of finite height. Another fixed point theorem concerns Scott-continuous functions on directed-complete posets, with no height restriction at all. I am curious if you have any comments about the trade-offs between these two approaches; are there types in your library whose intrinsic orders are not directed-complete, or are there functions in your library that are monotone but not Scott-continuous? If not, I wonder if this could help with the issue that you describe at the top of page 7 concerning the fact that `RSet` is precisely an example of a type whose order has infinite height.
+
+I’d say the problem with using Scott-continuity is that it may not help if a fixed-point exists, but cannot be found by the underlying imperative solver in a finite number of steps. In that sense `Data.Set` is not directed-complete: The sets `S.fromList [1..n]` are ordered, but the limit is not expressible in type of finite sets. OTOH, if someone hands me an (imperative) solver for such equations, then my library can wrap it in a pure API.
+
+> A: In section 5.6, you discuss the fact that lambda lifting does not preserve the meanings of programs written using your library. Is there a flag to ensure that GHC does not apply the lambda lifting transformation? What is your recommendation for programmers who may want to use your library?
+
+There are a variety of flags one could use (`-fno-full-laziness`, `-no-fstg-lift-lams`). I would recommend to allow lambda lifting: GHC will not break sharing, so it will not break your carefully crafted rec-def-based knot-tied program. It could introduce additional sharing, and thus “unbreak” your program if it didn’t have enough sharing -- but that’d fine, I’d…
+- - - - - Truncated for length, full response available on website - - - - -
+
+
+
+Comment @A1 by Reviewer A
+---------------------------------------------------------------------------
+Dear authors,
+
+We thank you for your helpful response to our questions. We have chosen to conditionally accept your paper for publication at ICFP 2023, subject to the following changes:
+
+1. Please significantly shorten and tighten up Section 5.
+2. Please add an explicit discussion of the limitations of your approach (this need not be very long).
+3. After studying your response, we think that the comparison with Arntzenius and Krishnaswami’s work is currently too superficial, and we were not convinced by the point about `let` vs. `fix`. Therefore, we request a bit more thorough comparison with Arntzenius and Krishnaswami as well as the `Hatafun` implementation. It is up to you, but we expect the benefit of the approach of the present paper over the related work is that it can be deployed right away in actual Haskell projects.
+
+We look forward to seeing your revision!
