@@ -1,0 +1,5 @@
+cd rec-def-0.2.1/
+cabal build
+cabal build --write-ghc-environment-files=always
+cabal test
+ghci Data/Recursive/Examples.hs

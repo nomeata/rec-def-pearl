@@ -1,0 +1,9 @@
+canThrow2 example4
+canThrow example4
+:load ../program-anal.hs
+rTrans2 example2
+rTrans2 example1
+rTrans1 example2
+rTrans1 example1
+:load ../trans.hs
+let x = RS.insert 42 x in RS.get x

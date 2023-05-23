@@ -14,3 +14,5 @@ rec-def-pearl.tex.bak
 texput.fls
 texput.log
 
+aec/image
+aec/base-image.tar.xz
