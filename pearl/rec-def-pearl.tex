@@ -1,11 +1,12 @@
 \PassOptionsToPackage{dvipsnames}{xcolor}
-\documentclass[manuscript,anonymous,screen,acmsmall]{acmart}
+\documentclass[manuscript,review,screen,acmsmall]{acmart}
 
 \usepackage[capitalise,nameinlink,noabbrev]{cleveref}
 \usepackage{textgreek}
 \usepackage{afterpage}
+\usepackage{tikz}
 
-% LHS2TEx setup
+% LHS2TeX setup
 
 \let\Bbbk\undefined %https://github.com/kosmikus/lhs2tex/issues/82
 \typeout{(./polytt.fmt)} % For latexmk
@@ -195,7 +196,7 @@ Haskell is a pure and lazy programming language, and this laziness allows us to 
 fibs :: [Integer]
 fibs = 0 : 1 : zipWith (+) fibs (tail fibs)
 \end{code}
-This is often called “knot-tying”, because a value (here |fibs|) has a definition involving this value.
+This is often called “knot-tying”, because a value (here |fibs|) has a definition involving itself.
 
 \subsection{Tying the knot with graphs}
 
@@ -209,7 +210,7 @@ type Graph = M.Map Int [Int]
 The reflexive transitive closure can be very elegantly expressed by knot-tying a map from vertices to their set of reachable vertices:
 \begin{code}
 rTrans1 :: Graph -> Graph
-rTrans1 g = M.map S.toList sets
+rTrans1 g = M.map S.toList reaches
   where
     reaches :: M.Map Int (S.Set Int)
     reaches = M.mapWithKey (\v vs -> S.insert v (S.unions [ reaches M.! v' | v' <- vs ])) g
@@ -220,13 +221,41 @@ Note how the definition of |reaches| refers to itself -- we are “tying a knot�
 
 \subsection{It works, until it doesn't}
 
-This is the kind of code we like to impress our strict-language-using friend with, and it works quite nicely:
+\begin{figure}
+\centering
+\hfill
+\hfill
+\begin{tikzpicture}
+\node[draw,circle, inner sep=1pt] (1) at (0,0) {1};
+\node[draw,circle, inner sep=1pt] (2) at (1,0) {2};
+\node[draw,circle, inner sep=1pt] (3) at (2,0) {3};
+\path[draw,->] (1) to [bend left] (3);
+\path[draw,->] (2) to [bend left] (1);
+\path[draw,->] (2) to [bend right] (3);
+\end{tikzpicture}
+\hfill
+\begin{tikzpicture}
+\node[draw,circle, inner sep=1pt] (1) at (0,0) {1};
+\node[draw,circle, inner sep=1pt] (2) at (1,0) {2};
+\node[draw,circle, inner sep=1pt] (3) at (2,0) {3};
+\path[draw,->] (1) to [bend left] (3);
+\path[draw,->] (1) to [bend left] (2);
+\path[draw,->] (2) to [bend left] (1);
+\path[draw,->] (2) to [bend right] (3);
+\end{tikzpicture}
+\hfill
+\hfill
+\strut
+\caption{Two graphs}\label{fig:graphs}
+\end{figure}
+
+This is the kind of code we like to impress our strict-language-using friend with, and it works quite nicely on a small graph (\cref{fig:graphs}, left graph):
 \begin{code}
 ghci> rTrans1 (M.fromList [(1,[3]),(2,[1,3]),(3,[])])
 fromList [(1,[1,3]),(2,[1,2,3]),(3,[3])]
 \end{code}
 %
-At least until our strict-language-using friend challenges us to add just one small edge to the graph:
+At least until our strict-language-using friend challenges us to add just one small edge to the graph (\cref{fig:graphs}, right graph):
 \begin{code}
 ghci> rTrans1 (M.fromList [(1,[2,3]),(2,[1,3]),(3,[])])
 fromList [(1,fromList ^CInterrupted.
@@ -235,12 +264,12 @@ Now the graph has a \emph{cycle} ($1 \to 2 \to 1$) which makes our code get lost
 
 This is quite disappointing! In order to handle recursive graphs as input as well, we have to implement this in a much more tedious way, maybe with an explicit loop, keeping track of the set of seen vertices (see \cref{sec:imp} if you really want to see it, but the goal is that you shouldn’t have to). It works, and most of us have likely written that idiom before, but we cannot impress our friend with that.
 
-But it seems we should: The declarative specification, from which we have derived |rTrans1|, holds for recursive graphs as well, so it does not seem too unreasonable to expect the above code to handle recursive graphs as well. Where does it go wrong? The way we use the lazy map data structure is fine; it helps us to express the set of reachable vertices by way of other such sets.
+But it seems it should work: The declarative specification, from which we have derived |rTrans1|, holds for recursive graphs as well, so it does not seem too unreasonable to expect the above code to handle recursive graphs as well. Where does it go wrong? The way we use the lazy map data structure is fine; it helps us to express the set of reachable vertices by way of other such sets.
 The problem is that the set data structure, with its operations |insert| and |union|, is not lazy enough: |union| wants to know the value of its arguments before it can produce something useful, and thus cannot be used in a recursive, knot-tying way.
 
 \subsection{We need better sets!}
 
-In this paper we present a data structure for sets, called |RSet|, where such recursive expressions do work! Its API is almost the same as that of |Set| from |Data.Set|. In particular, it also consists of plain \emph{pure} functions -- no monads necessary. The fragment of the API relevant for our example is:
+In this paper we present a data structure for sets, called |RSet|, where such recursive expressions do work! Its API is almost the same as that of |Data.Set|, Haskell's standard library for finite sets. In particular, it also consists of plain \emph{pure} functions -- no monads necessary. The fragment of the API relevant for our example is:
 \begin{code}
 insert  :: Ord a =>  a -> RSet a  -> RSet a
 unions  :: Ord a =>  [RSet a]     -> RSet a
@@ -268,6 +297,11 @@ fromList [(1,[1,2,3]),(2,[1,2,3]),(3,[3])]
 From the user’s point of view, that is almost all there is  to say: There is a library of types (sets, Booleans, maps) you can use like the conventional types, and suddenly your favorite knot-tying tricks work even better. In \cref{sec:exploration} we'll explore this library from the user's point of view, followed by a larger program analysis case-study in \cref{sec:casestudy}. Then we take a look at how the library works under the hood (\cref{sec:impl}), which calls for a discussion of whether calling this \emph{pure} is actually warranted (\cref{sec:pure}). Finally we take a brief glance at related approaches (\cref{sec:related}).
 
 \medskip\noindent
+
+The main contribution of this paper is to demonstrate that we can make more data types recursively defineable, and thus solve more problems elegantly and declaratively.
+This can be implemented as a regular Haskell library\footnote{\url{https://hackage.haskell.org/package/rec-def}}, using GHC's |unsafePerformIO| primitive under the hood, but providing a \emph{safe} and \emph{pure} interface.
+
+\iffalse
 The main contributions of this paper are:
 
 \begin{itemize}
@@ -279,14 +313,15 @@ The main contributions of this paper are:
 
 %\item observing, as a hopefully enlightening insight, that one of the main features of \emph{laziness} is that it allows more recursive equations to be solved, and thus more problems be expressed declaratively, and thus a the lazier the language, the more declarative.
 \end{itemize}
+\fi
 
 \begin{acks}
-We like to thanks Sebastian Graf and Claudio Russo for their helpful comments.
+We like to thanks Sebastian Graf and Claudio Russo, as well as the anonymous reviewers, for their helpful comments.
 \end{acks}
 
 \section{Exploration}\label{sec:exploration}
 
-In the introduction we have used a data type |RSet| with an API that resembles that of the |Set| data structure in Haskell's |Data.Set| library. Let us explore this data structure some more from the user's point of view, to get a better understanding of how it is different from the vanilla |Set|, and to whet the appetite for the look at its implementation in \cref{sec:impl}.
+In the introduction we have used a data type |RSet| with an API that resembles that of the |Set| data structure in Haskell's |Data.Set| library. Let us explore this data structure some more from the user's point of view, to get a better understanding of how it is different from the ordinary |Set|, and to whet the appetite for the look at its implementation in \cref{sec:impl}.
 \Cref{fig:api} gives a comprehensive overview of the API.
 
 \subsection{Just an isomorphic copy?}
@@ -341,11 +376,11 @@ ghci> quickCheck $ \s1 s2 -> RS.get (RS.union s1 s2) === S.union (RS.get s1) (RS
 +++ OK, passed 100 tests.
 \end{code}
 
-The second equation generalizes to all operations in the API, giving them a straight-forward specification in terms of the corresponding operation on the underlying vanilla data type. But there must be a difference, else we would not be writing this paper.
+The second equation generalizes to all operations in the API, giving them a straight-forward specification in terms of the corresponding operation on the underlying ordinary data type. But there must be a difference, else we would not be writing this paper.
 
 \subsection{Recursion!}
 
-The difference is that with |RSet|, \emph{recursively defined expressions work!} For example, using vanilla |Set| from |Data.Set| (imported qualified as |S|), evaluating recursive expressions tends to hang:
+The difference is that with |RSet|, \emph{recursively defined expressions work!} For example, using the ordinary |Set| from |Data.Set| (imported qualified as |S|), evaluating recursive expressions tends to hang:
 \begin{code}
 ghci> let s = S.insert 42 s in s
 fromList ^CInterrupted.
@@ -373,7 +408,7 @@ In these examples, we build the graph of recursively defined |RSet| values expli
 
 \subsection{Fixpoints}
 
-It may come as a pleasant surprise that these expressions are productive, i.e.\ that we even obtain a result. But is it the right result? If we look at the last example above we can see that the vanilla sets we get for each of the three variables makes the three defining equations true:
+It may come as a pleasant surprise that these expressions are productive, i.e.\ that we even obtain a (non-bottom) result. But is it the right result? If we look at the last example above we can see that the ordinary sets we get for each of the three variables makes the three defining equations true:
 \begin{code}
 ghci> let s1 = S.fromList [23,42]; s2 = S.fromList [23]; s3 = S.fromList [23]
 ghci> s1 == S.insert 42 s2
@@ -397,7 +432,7 @@ It will always do so, provided that
 \item only finitely many |RSet| values are involved and
 \item no definition of a |rs :: RSet| depends on the expression |RS.get rs|.
 \end{itemize}
-Using |RS.get| drops us in the world of vanilla set, and the magic disappears:
+Using |RS.get| drops us in the world of ordinary sets, and the magic disappears:
 \begin{code}
 ghci> let s = RS.mk (RS.get (RS.insert 42 s)) in RS.get s
 fromList ^CInterrupted.
@@ -406,14 +441,14 @@ In this sense, |RS.mk . RS.get| is not the identity function.
 
 \subsection{More than sets}
 
-Our library of recursively definable values does not only provide sets, but also other data types, in particular Booleans, as seen in \cref{fig:api}. Again, we have a copy of the usual operations (literals, conjunction and disjunction), and as before, we expect a (possibly recursive) expression of |RBool| values to evaluate to the Boolean that solves these equation.
+The library not only provides recursively definiable sets, but also other data types, in particular a variant of the ordinary Booleans that are recursively definiable; see \cref{fig:api} for an excerpt of the API. Again, we have analogues of the usual operations (literals, conjunction and disjunction), and as before, a possibly recursively defined expression of type |RBool| will evaluate to “the” Boolean value which solves these defining equations.
 
 What happens if both |True| and |False| would solve an equation, like in the following case?
 \begin{code}
 ghci> let x = x RB.|| x in RB.get x
 False
 \end{code}
-We can see that |RBool| considers |False| as the least element, and for some use-cases that is the right choice. But for other use-cases, one would prefer |True| over |False|. Therefore, the library proves a separate module and data type |RDualBool|, again with the full set of operations on Booleans, but this time returning |True| if possible:
+We can see that |RBool| considers |False| as the least element, and for some use-cases that is the right choice. But for other use-cases, one would prefer |True| over |False|. Therefore, the library provides a separate module and data type |RDualBool|, again with the full set of operations on Booleans, but this time returning |True| if possible:
 \begin{code}
 ghci> let x = x RDB.|| x in RDB.get x
 True
@@ -432,7 +467,7 @@ and we would like to statically rule that out.
 
 The underlying bit of theory is the theorem that a monotone function $f : A \to A$ on a partially ordered set $A$ with least element $\bot \in A$ and finite height has a unique least fixed point. This is well-known (e.g.\ see \citep{lazyleast}), and if the sentence means something to you, you probably already saw it coming. And if it doesn't, it does not matter for reading this paper.
 
-This also explains why some functions from the underlying vanilla data type (such as |Data.Set|'s |difference|) are not available, as they are not monotonic.
+This also explains why some functions from the underlying ordinary data type (such as |Data.Set|'s |difference|) are not available, as they are not monotonic.
 
 \subsection{Termination}
 
@@ -444,7 +479,7 @@ Does this equation have a solution? Clearly the set |s| needs to contain |0|. Bu
 
 So we cannot allow this function for |RSet| if we want to guarantee a result for every finite recursive expression.
 
-For the theoretically inclined, this plays into the “$A$ has finite height” requirement in the theorem above. You might be irked that the type |Set a|, ordered by subset inclusion, does not actually have finite height (if |a| is not finite). With the current API (without functions like |map|) for every \emph{finite} |RSet| expression there are only finite many possible members, and thus the relevant “subtype” has finite height, and all is well again.
+For the theoretically inclined, this plays into the “$A$ has finite height” requirement in the theorem above. You might be irked that the type |Set a|, ordered by subset inclusion, does not actually have finite height (if |a| is not finite). With the current API (without functions like |map|) for every \emph{finite} |RSet| expression there are only finitely many possible members, and thus the relevant “subtype” has finite height, and all is well again.
 
 It would not be unreasonable, however, to add |map| to the |RSet| API, as it may be quite useful for some applications, and maybe in these applications the equation have a finite solution just fine. If we'd do that, we could no longer \emph{guarantee} termination for all possible expressions (as shown by the example above), but if expression yields a result, it will be the least fixed point of the defining equation. One can argue that this would be fine for a Haskell library, as Haskell programmers are used to programming around non-termination anyways.
 
@@ -470,13 +505,13 @@ A programming language that integrates these features first-class could take car
 
 \section{Case study: a program analysis}\label{sec:casestudy}
 
-Before we leave the user's point of view and look under the hood of the library, let us conclude the section with a slight larger and more realistic use-case. We hope that this example shows that using recursively definable values allows for noticeably more declarative and elegant programs.
+Before we leave the user's point of view and look under the hood of the library, let us walk through a slightly larger and more realistic use-case. We hope that this example shows that using recursively definable values allows for noticeably more declarative and elegant programs.
 
 \subsection{First without recursion}
 
 Let us consider small program analysis of a functional language with lazy let-bindings, (mutual) recursion and exceptions. It should determine whether evaluating an expression may throw an (uncaught) expression.
 
-To set the stage, \cref{fig:analast} contains a typical Haskell datatype for its abstract syntax. The |LetRec| constructor takes a list of bound variables along with their definition's  right-hand side, and a body; all bound variables are in scope in all the right-hand sides and the body.
+To set the stage, \cref{fig:analast} contains a typical Haskell datatype for its abstract syntax. The |LetRec| constructor takes a list of declarations (each with a name and definition) and a body; all bound variables are in scope in all the right-hand sides and the body.
 Variable names bound in |Lam|, |Let| and |LetRec| shadow outer occurrences. (The resemblance to GHC's intermediate language Core \citep{secrets} is certainly not a coincidence.)
 
 \begin{figure}
@@ -550,9 +585,11 @@ canThrow e = RB.get (go M.empty e)
 \end{code}
 All we had to do was to use |RBool| instead of |Bool| in the type of the local, use the corresponding operations (|RB.true|, |RB.false| and |RB.|||||) and  project out to normal Booleans at the end (using |RB.get|). A slight blemish is that we also had to insert a call to |RB.id| to not fall over the input |LetRec [("x", Var "x")]|, as explained in \cref{sec:blackhole}.
 
-\subsection{Results everywhere}
+\subsection{Using all the values}
 
-To keep it simple for this paper the analysis does not update the AST (e.g. remove redundant calls to |Catch|, or remember analysis results in the AST as GHC would do), as the necessary plumbing would obscure our point. But it would work: we can use |RB.get| within the function to get the analysis result for \emph{any} subexpression and return a changed AST accordingly, e.g.
+The example above calculates only one final result, whether the whole expression canThrow. A real compiler pass might want to use the analysis result at each node to update the AST (e.g.\ remove redundant calls to |Catch|, or remember analysis results in the AST as GHC would do). To keep the example simple for the paper we do not do that, as the necessary plumbing would obscure the point.
+
+But our library does allow it: we can use |RB.get| within the function to get the analysis result for \emph{any} subexpression and return a changed AST accordingly, e.g.
 \restorecolumns
 \begin{code}
     go :: M.Map V RBool -> Exp -> (RBool, Exp)
@@ -564,6 +601,7 @@ To keep it simple for this paper the analysis does not update the AST (e.g. remo
                |  otherwise         = e'
 \end{code}
 We'd have to be careful that the |RBool| returned by |go| does not depend on any decision made based on a boolean that was obtained with |RB.get|. For such a fused analysis/transformation pass this is typically possible.
+
 %The ability to query each “vertex” as we go sets this approach apart from other idioms with a
 
 \subsection{Alternatives}
@@ -585,7 +623,7 @@ GHC does this, as explained in \citet[Section 6.6]{modular}, but again at the co
 
 \item Another approach is to gather the full data flow problem from the \emph{whole} AST, solve it globally (thus also avoiding the problem mentioned in the previous bullet), and then distributing the analysis again to where we need it. This is reminiscent of how a constrained-based type inference algorithm works.
 
-It is a satisfying thought that this approach frees the solving algorithm from having to follow the syntactic nesting structure of the program, and that the repeated passes of the fixpoint iteration do not have to traverse and re-analyze the AST over and over. Instead is only sees the pure, distilled data-flow equations.
+It is a satisfying thought that this approach frees the solving algorithm from having to follow the syntactic nesting structure of the program, and that the repeated passes of the fixpoint iteration do not have to traverse and re-analyze the AST over and over. Instead it only sees the pure, distilled data-flow equations.
 
 There are, however, petty practical issues with this approach (representing the equations as data, uniquely naming the cells, the separate passes for collecting the equations and using the results).
 At this point, one is likely going to hide this bookkeeping in a suitable monad, which can recover some of the lost elegance, but if the code could otherwise be written as pure functions, that is still quite a price to pay.%
@@ -612,7 +650,13 @@ The core idea behind the implementation can be explained in two simple steps: Fi
 
 \subsection{An imperative core}\label{sec:impcore}
 
-A typical \emph{imperative} API to describe and solve a set of recursive equations provides functions to (1) register the variables, or \emph{cells}, (2) define their relationships and (3) finally read their values. To keep the example code small, we focus on just sets and insertion as the only operation, and could imagine an API like the following:
+A typical \emph{imperative} API to describe and solve a set of recursive equations provides functions to
+\begin{enumerate}
+\item register the variables, or \emph{cells},that occur in the equations
+\item define how such a cell is related to other cells
+\item finally read the value of the cells.
+\end{enumerate}
+To keep the example code small, we focus on just sets and insertion as the only operation, and could imagine an API like the following:
 
 \begin{minipage}{\linewidth}
 \begin{code}
@@ -623,7 +667,12 @@ getCell        ::            Cell a ->                 IO (Set a)
 \end{code}
 \end{minipage}
 
-A typical use of this API, solving a mutually recursive set equation, could be
+A typical use of this API, solving the two mutually related set equations
+\begin{align*}
+s_1 &= \{ 42 \} \cup s_2 \\
+s_2 &= \{ 23 \} \cup s_1
+\end{align*}
+would be
 \begin{code}
 ghci> c1 <- newCell
 ghci> c2 <- newCell
@@ -694,7 +743,7 @@ Even worse: Because this is run from |unsafePerformIO|, even in a single-threade
 
 In our library we address this with careful use of the |MVar| concurrency primitive \cite{concurrent}, and hide this cleanly behind a small abstraction for “possibly recursive |IO|-thunks” in the |System.IO.RecThunk| API.
 
-The dejafu test library \citep{dejafu}, which can exhaustively explore all possible interleavings of concurrent code, has proven invaluable when implementing that abstraction: more than once we thought we had finally achieved thread-safety, only to be told that we were still far off.
+The dejafu test library \citep{dejafu}, which can exhaustively explore all possible interleavings of concurrent code, has proven invaluable when implementing that abstraction: more than once we thought we had finally achieved thread-safety, only to be told that we were not there yet, until we eventually were able make the tests pass.
 
 \subsubsection{Modularity.}
 
@@ -733,7 +782,7 @@ In this section we discuss these questions, however without always being able to
 
 We found that this question is not easy to answer, because there does not exist a single, clear and widely accepted definition of “pure” functional programming.
 This paper is not the place to give an authoritative answer, so we look at various language properties commonly associated with a pure functional language in general and Haskell in particular,
-and see whether they still hold in the presence of our library
+and see whether they still hold in the presence of our library.
 
 \subsection{Type safety}
 
@@ -743,13 +792,13 @@ It is not hard to break type safety with |unsafePerformIO|, especially when ther
 
 \subsection{No (observable) side effects}
 
-Our library uses |IO| inside, and clearly we would not consider it to be pure if inserting |42| into a set would make the computer eject the CD drive. Avoiding such blatant side effects is simple -- we just don't do it.
+Our library uses |IO| inside, and clearly we would not consider it to be pure if inserting |42| into a set would make the computer eject the CD from its drive. Avoiding such blatant side effects is simple -- we just don't do it.
 
 However, |RS.insert 42 rs| \emph{does} destructively modify mutable data structures inside |rs|. It is crucial that these changes remain internal to the library, and are not observable by the programmer. It must not affect the result the programmer gets via |RS.get rs|, nor any other \emph{observable} value. Again, we believe that this is the case, for the same reasons we believe we maintain referential transparency (\cref{sec:reftrans}).
 
-That the space leak issue of the naive implementation described in \cref{sec:spaceleak} is \emph{almost} an issue of this kind: If we’d include space leaks in our notion of “observable behavior”, then that would be an example of such a side-effect issue.
+Note that the space leak issue of the naive implementation described in \cref{sec:spaceleak} is \emph{almost} an issue of this kind: If we’d include space leaks in our notion of “observable behavior”, then that would be an example of such a side-effect issue.
 
-\subsection{Evaluation order independence.}
+\subsection{Evaluation order independence}
 
 Even more, it should not matter in which order the various subexpressions are evaluated. In
 \begin{code}
@@ -762,6 +811,8 @@ we need to get the same result, no matter whether we evaluate the first componen
 
 Achieving this in our library required some care. Because our computation are triggered via |unsafePerformIO|, we have to expect any of them to happen at almost any time. Simple graph traversal methods, which simply mark a vertex as “done” before visiting its successors, easily go wrong when a second evaluation hits such a supposedly “done” vertex while the first traversal is still processing the graph. Getting this to the point where it seems to be working was non-trivial, as mentioned in \cref{sec:thread}.
 
+In the case of |RSet| this guarantee may no longer hold if one breaks the abstraction of the |Data.Set| library and looks at the internal represenation, as the same set can be represented by differently balanced search trees internally.
+
 \subsection{Referential transparency}\label{sec:reftrans}
 
 Purity is usually understood to also imply referential transparency: If |x| is defined to be |e|, then we can replace an occurrence |x| with |e|, and vice-versa, without changing the meaning of the program.
@@ -773,7 +824,7 @@ This restriction to fixpoints, i.e.\ to solutions of a set of equations, puts a 
 
 \subsection{Program equivalences and lambda lifting}\label{sec:sat}
 
-Referential transparency is a crucial ingredient to equational reasoning: rewriting the code according to a set of rules, while preserving its meaning. Beyond just replacing |x| with its definition |e| (also called \emph{unfolding} or \textdelta-reduction) are further program transformations that we expect to preserve semantics. They may be applied by optimizing compiler, used in program verification or simply by a programmer trying to understand the meaning of some code.
+Referential transparency is a crucial ingredient to equational reasoning: rewriting the code according to a set of rules, while preserving its meaning. Beyond just replacing |x| with its definition |e| (also called \emph{unfolding} or \textdelta-reduction) are further program transformations that we expect to preserve semantics. They may be applied by optimizing compiler, used in program verification or simply by a programmer trying to understand the meaning or improve the structure of some code.
 
 Ideally, all program transformations that are meaning-preserving in pure Haskell would still meaning-preserving in the presence of our library. Unfortunately, this is not the case: Lambda lifting can turn terminating programs into non-terminating ones.
 
@@ -799,11 +850,11 @@ So does this invalidate our claims that we built a beautiful, well-behaved, pure
 
 As you ponder this question, note that if you include (asymptotic) resource usage in your expectation of program equivalence, then such lambda-lifting is already rather dangerous in Haskell: The nice and fast knot-tied |fibs| from the introduction becomes horribly inefficient once you turn it into a recursive \emph{function} (|let fibs x y = x : y  : zipWith (+) (fibs x y) (tail (fibs x y))|). Because the lambda-lifting transformation is only an equivalence as long as we ignore (asymptotic) complexity, it seems that breaking that equivalence is not too wicked.
 
-\Citet[Fact 3.7]{sabry} points out that merely changing the set of observational equivalences does \emph{not}, in general and on its one, imply that the extended language is no longer pure.
+\Citet[Fact 3.7]{sabry} points out that merely changing the set of observational equivalences does \emph{not}, in general and on its own, imply that the extended language is no longer pure.
 
 \subsection{Compiler transformations}\label{sec:comptrans}
 
-The compiler tends to share the attitude that (at least asymptotic) complexity is a relevant aspect of the program's semantics, and will thus be careful to preserve (recursive) sharing that is explicit in the source program. Therefore we can be fairly certain that it will not just nilly-willy apply such lambda-lifting to our code.
+The compiler tends to share the attitude that (at least asymptotic) complexity is a relevant aspect of the program's semantics, and will thus be careful to preserve (recursive) sharing that is explicit in the source program. Therefore we can be fairly certain that it will not just willy-nilly apply such lambda-lifting to our code.
 
 The same holds for all the other transformations applied by the compiler, such as partial evaluation, case-of-case, worker/wrapper, common subexpression elimination etc.\ \citep{optimiser}. Because our library has these nice equational properties as long as sharing is preserved, we can be fairly certain that all these are still meaning-preserving in the presence of our library.
 
@@ -816,7 +867,7 @@ A language is purely functional if (i) it includes every simply typed λ-calculu
 divergence and errors).
 \end{quote}
 
-It is not straight-forward to apply this criterion to our library, or Haskell itself, because it assumes the existence of these three implementations, and we do not have that for Haskell. Even if we had, in the call-by-value implementation, all our recursive definitions would vacuously loop, and in the call-by-name implementation (quite like after the lambda lifting), our library would not see \emph{finite} graphs, so all interesting programs would become no-terminating. In that sense, our library \emph{is} pure according to Sabry’s criterion.
+It is not straight-forward to apply this criterion to our library, or Haskell itself, because it assumes the existence of these three implementations, and we do not have that for Haskell. Even if we had, in the call-by-value implementation, all our recursive definitions would vacuously loop, and in the call-by-name implementation (quite like after the lambda lifting), our library would not see \emph{finite} graphs, so all interesting programs would become non-terminating. In that sense, our library \emph{is} pure according to Sabry’s criterion.
 
 Because it requires multiple implementations we find Sabry’s criterion of purity not fully convincing. Maybe there exists a suitable criterion that works with a single language semantics, maybe by listing observable equivalences that must hold for a language to be considered pure?
 We'll leave this question hanging, hoping it can tempt someone to give a satisfying answer.
@@ -829,11 +880,11 @@ Longley considers a term to be functional if it denotes an element in the mathem
 
 \subsection{How to prove it?}
 
-So with the exception of preservation under lambda-lifting, we are fairly confident that our library is as pure as advertised. Ideally we'd like to be sure, and we’d be sure if we could perform a rigorous proof.  That not only requires a clear definition of what exactly “pure“ means, as discussed above, but also a framework that allows us to reason about lazy programs with |unsafePerformIO|, |IORef|, laziness and concurrency.
+So with the exception of preservation under lambda-lifting, we are fairly confident that our library is as pure as advertised. Ideally we'd like to be sure, and we’d be sure if we could perform a rigorous proof.  That not only requires a clear definition of what exactly “pure” means, as discussed above, but also a framework that allows us to reason about lazy programs with |unsafePerformIO|, |IORef|, laziness and concurrency.
 
 Unfortunately, we do not know how to do that well. In the single-threaded world we could imagine extending an operational semantics for lazy languages such as \citeauthor{launchbury}’s [\citeyear{launchbury}] natural semantics for lazy evaluation with a global store for the mutable variables, and spurious evaluations for |unsafePerformIO|, but it seems tedious and we would not yet have threads.
 
-The maybe most similar work is \citeauthor{runST}'s \citeyear{runST} proof that |runST :: ST a -> a| is safe, although it does not yet cover laziness nor concurrency.
+The maybe most similar work is \citeauthor{runST}'s \citeyear{runST} proof that |runST :: ST a -> a| is safe, although it does not yet cover laziness or concurrency.
 They used the Iris framework, and for Iris one even finds a mechanized proof of the correctness of a generic fixpoint solver \citep{spygame}.
 It seems that important building blocks are already there, and we hope that this paper can maybe motivate more work in that direction.
 
@@ -860,7 +911,8 @@ Also related is the concept of \emph{propagator network} \citep{propagator}, alt
 
 Their extension to Haskell is bolder: It breaks more laws (even referential transparency!) in order to make the structure of the embedded graph observable, as necessary for their poster use-case. With our library, you \emph{cannot} observe the structure of the graph; you only get your hands on the unique solution to the equations. This means it is unsuitable for some use-cases, but also less disruptive.
 
-We probably could have implemented our library on top of their observable sharing mechanism, reifying the graph of values as a data structure with explicitly named vertices. We chose to do it differently, and use Haskell's laziness together with |unsafePerformIO| (which will be executed once per value) to create unique mutable cells and let those cells refer to each other. The graph is never actually turned into a (Haskell-level) data structure and the cells are not (explicitly) numbered or named; instead the graphs is represented by the pointers on the heap, cells are implicitly identified by their object identity, and the bookkeeping data for each cell is stored within its mutable fields.
+We could have implemented our library on top of their observable sharing mechanism, reifying the graph of values as a data structure with explicitly named vertices. We chose to do it differently: Haskell's laziness and the guarantee that an application |x = unsafePerformIO act| is executed at most once makes sharing of the value |x| observable. For each shared value we can thus create a unique mutable cell, and let them refer to each other.
+The graph is never actually turned into a (Haskell-level) data structure and the cells are not (explicitly) numbered or named; instead the graph is represented by the pointers on the heap, cells are implicitly identified by their object identity, and the bookkeeping data for each cell is stored within its mutable fields.
 
 Looking beyond Haskell we want to point out CoCaml \citep{cocaml}, which allows the Ocaml programmer to observe the structure of knot-tied (coinductive) data, and even process such data while preserving the sharing (so that a |map| over a cyclic list can return a cyclic list).
 
