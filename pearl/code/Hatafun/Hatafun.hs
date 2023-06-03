@@ -211,6 +211,10 @@ mbind :: (Ord a, Ord b, MonoOps repr) =>
     repr v s (Set a) -> repr v s (a -> Set b) -> repr v s (Set b)
 mbind sa f = lift $ unions $ Data.Set.map (unlift f) (unlift sa)
 
+munion :: (Ord a, MonoOps repr) =>
+    repr v s (Set a) -> repr v s (Set a) -> repr v s (Set a)
+munion sa f = lift $ Data.Set.union (unlift f) (unlift sa)
+
 mempty :: (Ord a) => Defn (Set a)
 mempty = lift $ Data.Set.empty
 
@@ -260,7 +264,7 @@ substring :: MonoOps repr => repr v 'Z String -> repr v 'Z Int -> repr v 'Z Int 
 substring s lo hi = lift $ drop (unlift lo) . take (unlift hi) $ (unlift s)
 
 int :: Int -> Defn Int
-int = lift
+int i = lift i
 
 plus :: Defn (Int -+> Int -+> Int)
 plus = mlam $ \a -> mlam $ \b -> lift $ (unsafeUnlift a) + (unsafeUnlift b)

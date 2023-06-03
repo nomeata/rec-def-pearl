@@ -2,7 +2,7 @@
 \documentclass[manuscript,review,screen,acmsmall]{acmart}
 
 \newif\ifpure
-\purefalse
+\puretrue
 
 \usepackage[capitalise,nameinlink,noabbrev]{cleveref}
 \usepackage{textgreek}
@@ -849,9 +849,17 @@ Looking beyond Haskell we want to point out CoCaml \citep{cocaml}, which allows 
 
 For the kind of use-cases presented here, logic programming languages like Prolog and Datalog are certainly on their home turf. What we bring to the table is the seamless integration into an existing purely functional language.
 
+\subsubsection{Datafun}
+
 Particularly close to our work, and straddling the functional and logic programming paradigms, is the \emph{Datafun} language \citep{datafun}, a pure and total functional programming language generalizing Datalog, which can declaratively express and compute fixed points of monotone maps on semilattices -- exactly what we are trying to do. Since they tailor their language around this idea, their type system can recognize \emph{monotonic} function definitions.
 
-Monotonicity is crucial for the existence and uniqueness of a solution (\cref{sec:monotonicity}). We ensure monotonicity by simply restricting the interface (\cref{fig:api}) to only expose monotonic functions. This works, but is rather limiting when it comes to higher-order functions. Assume we would want to support recursively-definable finite \emph{maps} as well. A natural order on finite maps is the point-wise ordering. But with that ordering, higher-order operations like |map :: (a -> b) -> RMap k a -> RMap k b| are only monotonic if their argument is monotonic, and Haskell's type system does not allow us to express that constraint. Without these higher-order functions, however, the map API would be quite impoverished, so we do not support finite maps with the point-wise ordering in our library.\footnote{You might notice the |Data.Recursive.Map| module in the |rec-def| package. This implements maps with the \emph{discrete} ordering on values, where all higher order function arguments are vacuously monotonic, thus avoiding this issue.} Datafun's type system has a separate function arrow $\xrightarrow{+}$ to characterize monotonic functions, and thus supports this use-case quite well.
+\newcommand{\mfun}{\xrightarrow{\raisebox{-3pt}[0pt][0pt]{+}}}
+
+Monotonicity is crucial for the existence and uniqueness of a solution (\cref{sec:monotonicity}). We ensure monotonicity by simply restricting the interface (\cref{fig:api}) to only expose monotonic functions. This works, but is rather limiting when it comes to higher-order functions. Assume we would want to support recursively-definable finite \emph{maps} as well. A natural order on finite maps is the point-wise ordering. But with that ordering, higher-order operations like \mbox{|map :: (a -> b) -> RMap k a -> RMap k b|} are only monotonic if their argument is monotonic, and Haskell's type system does not allow us to express that constraint. Without these higher-order functions, however, the map API would be quite impoverished, so we do not support finite maps with the point-wise ordering in our library.\footnote{You might notice the |Data.Recursive.Map| module in the |rec-def| package. This implements maps with the \emph{discrete} ordering on values, where all higher order function arguments are vacuously monotonic, thus avoiding this issue.} Datafun's type system has a separate function arrow $\mfun$ to characterize monotonic functions, and thus supports this use-case quite well.
+
+\subsubsection{Hatafun}
+
+Could we have such such a function arrow $\mfun$ in Haskell? This idea is explored by \emph{Hatafun} \citep{hatafun}, an embedding of Datafun into Haskell. It defines |newtype a -+> b = MFun (a -> b)| and its API, if used correctly, only allows monotonic functions.
 
 \section{Conclusion and further work}
 
@@ -891,8 +899,8 @@ getCell        ::            Cell a ->                 IO (Set a)
 \noindent 
 A simple implementation could look like this:
 
-\typeout{(./Cell.lhs)} % For latexmk
-%include Cell.lhs
+\typeout{(./code/Cell.lhs)} % For latexmk
+%include ./code/Cell.lhs
 
 
 \ifpure
