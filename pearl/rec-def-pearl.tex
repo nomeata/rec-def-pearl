@@ -303,7 +303,7 @@ From the user’s point of view, that is almost all there is  to say: There is a
 
 \medskip\noindent
 
-The main contribution of this paper is to demonstrate that we can make more data types recursively defineable, and thus solve more problems elegantly and declaratively.
+The main contribution of this paper is to demonstrate that we can make more data types recursively definable, and thus solve more problems elegantly and declaratively.
 This can be implemented as a regular Haskell library\footnote{\url{https://hackage.haskell.org/package/rec-def}}, using GHC's |unsafePerformIO| primitive under the hood, but providing a \emph{safe} and \emph{pure} interface.
 
 \iffalse
@@ -446,7 +446,7 @@ In this sense, |RS.mk . RS.get| is not the identity function.
 
 \subsection{More than sets}
 
-The library not only provides recursively definiable sets, but also other data types, in particular a variant of the ordinary Booleans that are recursively definiable; see \cref{fig:api} for an excerpt of the API. Again, we have analogues of the usual operations (literals, conjunction and disjunction), and as before, a possibly recursively defined expression of type |RBool| will evaluate to “the” Boolean value which solves these defining equations.
+The library not only provides recursively definable sets, but also other data types, in particular a variant of the ordinary Booleans that are recursively definable; see \cref{fig:api} for an excerpt of the API. Again, we have analogues of the usual operations (literals, conjunction and disjunction), and as before, a possibly recursively defined expression of type |RBool| will evaluate to “the” Boolean value which solves these defining equations.
 
 What happens if both |True| and |False| would solve an equation, like in the following case?
 \begin{code}
@@ -810,11 +810,11 @@ In particular, since an optimizing compiler tends to be careful to not worsen th
 
 \subsection{Equivalence of sets}
 
-The purity of this library rests on the fact that the equations have a unique soluiton, and therefore it does not matter how the result is calculated. This argument has a weakness in the case of |RSet| because the underlying |Set| type, implemented as a weight-balanced binary search tree \citep{adams-tr,nievergelt}, does not have a unique representation, and a different evaluation order may lead to results that are differntly represented. This is only observable by intentionally breaking the abstraction via the |Data.Set.Internal| module, but it is possible.
+The purity of this library rests on the fact that the equations have a unique solution, and therefore it does not matter how the result is calculated. This argument has a weakness in the case of |RSet| because the underlying |Set| type, implemented as a weight-balanced binary search tree \citep{adams-tr,nievergelt}, does not have a unique representation, and a different evaluation order may lead to results that are differently represented. This is only observable by intentionally breaking the abstraction via the |Data.Set.Internal| module, but it is possible.
 
 \subsection{Unproven claims}
 
-Our claims above about the safety and purity of the exposed interface are not yet backed by a formal proof. Executing such a proof would first require a formal notion of what “pure” even means, which is not quite clear. Formal criteria have been proposed by \citet{sabry} and \citet{longley}, but they do not easily apply to our setting. Additionaly, we’d need a formal framework that allows us to reason about lazy programs with |unsafePerformIO|, |MVar|, laziness and concurrency.
+Our claims above about the safety and purity of the exposed interface are not yet backed by a formal proof. Executing such a proof would first require a formal notion of what “pure” even means, which is not quite clear. Formal criteria have been proposed by \citet{sabry} and \citet{longley}, but they do not easily apply to our setting. Additionally, we’d need a formal framework that allows us to reason about lazy programs with |unsafePerformIO|, |MVar|, laziness and concurrency.
 
 The maybe most similar work are the two mechanized proofs that |runST :: ST a -> a| is safe \citep{runST,runST2}: The contextual equivalences of the pure language still hold when extending the language with |runST|, and thus the extension is fully abstract.  However, their languages are not call-by-need (which is crucial in our case) and not concurrent (which is also relevant), and as discussed in the previous section, our extension preserves some, but not all contextual equivalences.
 
@@ -824,7 +824,7 @@ We know how to describe pure functional programming languages elegantly using de
 
 Unfortunately, so fare we did not find it, mainly for two reasons:
 \begin{itemize}
-\item As discussed in \cref{sec:lim-lambda-lift}, sharing now affects termination. How would a denotaional semantics look like that can distinguish tied knots (|let xs = 1 : xs in xs|) from general recursion (|let f x = x : f x in f 1|)?
+\item As discussed in \cref{sec:lim-lambda-lift}, sharing now affects termination. How would a denotational semantics look like that can distinguish tied knots (|let xs = 1 : xs in xs|) from general recursion (|let f x = x : f x in f 1|)?
 \item We use |let| to describe both recursion in Haskell's domain, e.g. for recursive functions and knot-tied data structures, as well as for the equations to be solved by our library. This entanglement of two seemingly unrelated partial orders so far resisted disentanglement.
 \end{itemize}
 
@@ -867,7 +867,7 @@ For the kind of use-cases presented here, logic programming languages like Prolo
 
 Particularly close to our work, and straddling the functional and logic programming paradigms, is the \emph{Datafun} language \citep{datafun}, a pure and total functional programming language generalizing Datalog, which can declaratively express and compute fixed points of monotone maps on semilattices -- exactly what we are trying to do. Since they tailor their language around this idea, their type system can recognize \emph{monotonic} function definitions
 
-Datafun comes with a denotional semantics, which we lack. In their case it helped that as a total language, they do not have to worry about arbitrary recursion and non-termination, avoiding the complications mentioned in \cref{sec:denotional}.
+Datafun comes with a denotational semantics, which we lack. In their case it helped that as a total language, they do not have to worry about arbitrary recursion and non-termination, avoiding the complications mentioned in \cref{sec:denotional}.
 
 \newcommand{\mfun}{\xrightarrow{\raisebox{-3pt}[0pt][0pt]{+}}}
 
@@ -879,7 +879,7 @@ Monotonicity is crucial for the existence and uniqueness of a solution (\cref{se
 
 Could we have such a function arrow $\mfun$ in Haskell? This idea is explored by \citet{hatafun} with \emph{Hatafun}, an experiment embedding Datafun's type system into Haskell. It defines a |newtype a -+> b = MFun (a -> b)| for monotonic functions and uses type-level computation and Higher Order Abstract Syntax in the style of \citet{polakow} to allow the safe definition of such functions.
 
-Recursive equations still have to be manually turned into a single equation and threaded throuh an the explicit |fix| operator provided by Hatafun; here we believe our approach of using Haskell's |let| to declare complex mutually recursive equations provides significant benefits (as discussed in \cref{sec:casestudyalts}.
+Recursive equations still have to be manually turned into a single equation and threaded through an the explicit |fix| operator provided by Hatafun; here we believe our approach of using Haskell's |let| to declare complex mutually recursive equations provides significant benefits (as discussed in \cref{sec:casestudyalts}.
 
 \section{Conclusion and further work}
 
@@ -972,7 +972,7 @@ we need to get the same result, no matter whether we evaluate the first componen
 
 Achieving this in our library required some care. Because our computation are triggered via |unsafePerformIO|, we have to expect any of them to happen at almost any time. Simple graph traversal methods, which simply mark a vertex as “done” before visiting its successors, easily go wrong when a second evaluation hits such a supposedly “done” vertex while the first traversal is still processing the graph. Getting this to the point where it seems to be working was non-trivial, as mentioned in \cref{sec:thread}.
 
-In the case of |RSet| this guarantee may no longer hold if one breaks the abstraction of the |Data.Set| library and looks at the internal represenation, as the same set can be represented by differently balanced search trees internally.
+In the case of |RSet| this guarantee may no longer hold if one breaks the abstraction of the |Data.Set| library and looks at the internal representation, as the same set can be represented by differently balanced search trees internally.
 
 \subsection{Referential transparency}\label{sec:reftrans}
 
