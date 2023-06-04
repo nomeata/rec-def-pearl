@@ -32,6 +32,7 @@
 
 % new keywords
 %format qualified = "\StyleKW{qualified}"
+%format forall = "\StyleKW{forall}"
 %format as = "\StyleKW{as}"
 
 % highlight this as non-code
@@ -829,9 +830,12 @@ All the work in making fixpoint solvers and data-flow analyses efficient is rele
 
 Also related is the concept of \emph{propagator network} \citep{propagator}, although our use-case is a bit simpler, as information only flows in one direction along an edge, and once we queried the value of one vertex, we never add more constraints that would influence that vertex.
 
-%\subsection{LVars}
-%
-% One might wonder if Lindsey Kuper's LVar library can be used to implement
+\subsection{LVars}
+
+\Citet{lvars} introduce \emph{LVars}, concurrent data structures that can be read from and written to in parallel, but thanks to restrictions on writes (monotonically increasing) and reads (“threshold reads”), a deterministic result is guaranteed in the end. Therefore, the concurrent, effectful, monadic code can be executed in a pure context, via |runPar :: (forall s. Par Det s a) -> a|.
+
+There are some similarities to our work (uses |unsafePerformIO| under the hood, relies on monotonicity to guarantee a unique result), but also significant differences: LVars come with a monadic interface while we avoid monads; our library allows to pull out many pure values, while |runPar| discharges the |Par| monad only once; with LVar one can do more than just solve equations. It thus does not seem to be possible to implement our library using just their public, safe interface.
+
 
 \subsection{Shallow graph embeddings and observable sharing}
 
