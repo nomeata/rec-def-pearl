@@ -818,13 +818,23 @@ Our claims above about the safety and purity of the exposed interface are not ye
 
 The maybe most similar work are the two mechanized proofs that |runST :: ST a -> a| is safe \citep{runST,runST2}: The contextual equivalences of the pure language still hold when extending the language with |runST|, and thus the extension is fully abstract.  However, their languages are not call-by-need (which is crucial in our case) and not concurrent (which is also relevant), and as discussed in the previous section, our extension preserves some, but not all contextual equivalences.
 
+\subsection{Denotational semantics}\label{sec:denotational}
+
+We know how to describe pure functional programming languages elegantly using denotational semantics and fixed-point theorems. Domain theory and fixed-point theorems also underpin the data structures presented here. We would therefore expect that our extended language has a nice denotational semantics as well.
+
+Unfortunately, so fare we did not find it, mainly for two reasons:
+\begin{itemize}
+\item As discussed in \cref{sec:lim-lambda-lift}, sharing now affects termination. How would a denotaional semantics look like that can distinguish tied knots (|let xs = 1 : xs in xs|) from general recursion (|let f x = x : f x in f 1|)?
+\item We use |let| to describe both recursion in Haskell's domain, e.g. for recursive functions and knot-tied data structures, as well as for the equations to be solved by our library. This entanglement of two seemingly unrelated partial orders so far resisted disentanglement.
+\end{itemize}
+
 \section{Related work}\label{sec:related}
 
 The present work draws inspiration from and connects to various directions.
 
 \subsection{Fixpoint solvers and propagation networks}
 
-\Cref{sec:impcore} describes the “imperative core” of our library: An underlying library that allows us to declare the cells of a possibly cyclic graph of values with their relations and finds the solution. For the purposes of this paper we can assume this to be a black box, to avoid getting distracted by questions related to the theory and implementation of this black box, which is good, as there is much interesting than can be said and done here.
+\Cref{sec:impcore} describes the “imperative core” of our library: An underlying library that allows us to declare the cells of a possibly cyclic graph of values with their relations and finds the solution. For the purposes of this paper we can assume this to be a black box, to avoid getting distracted by questions related to the theory and implementation of this black box, as tempting as these questions may be.
 
 All the work in making fixpoint solvers and data-flow analyses efficient is relevant here \citep{kildall-73,kam-ullman-76}. An important difference to typical data-flow analyses is that in order to stay pure, we cannot afford to make conservative approximations while solving the equations (e.g.\ aborting with a safe guess after a certain number of iterations).
 
@@ -839,12 +849,12 @@ There are some similarities to our work (uses |unsafePerformIO| under the hood, 
 
 \subsection{Shallow graph embeddings and observable sharing}
 
-\Citet{observable-sharing} made sharing observable in Haskell, so that they can very elegantly describe logic circuits in Haskell. They extend pure Haskell with operations that one might dismiss as impure (observable object identity), point out that this breaks some equational equivalences of Haskell, but that this may be acceptable, given that some of these equivalences  are not benign code transformations to begin with, as they can duplicate arbitrary amount of work anyways -- a line of reasoning you may recognize from \cref{sec:lim-lambda-lift}.
+\Citet{observable-sharing} made sharing observable in Haskell, so that they can very elegantly describe logic circuits in Haskell. They extend pure Haskell with operations that one might dismiss as impure (observable object identity), point out that this breaks some equational equivalences of Haskell, but that this may be acceptable, given that some of these equivalences  are not benign code transformations to begin with, as they can duplicate arbitrary amount of work anyways -- a line of reasoning you may recognize from \cref{sec:lim-lambda-lift}. \Citet{typesafe-sharing} proposed a variant with a more focused primitive |reifyGraph| that turns a knot-tied value into an explicit graph data structure.
 
-Their extension to Haskell is bolder: It breaks more laws (even referential transparency!) in order to make the structure of the embedded graph observable, as necessary for their poster use-case. With our library, you \emph{cannot} observe the structure of the graph; you only get your hands on the unique solution to the equations. This means it is unsuitable for some use-cases, but also less disruptive.
+Both extensions to Haskell are bolder: They break more laws (even referential transparency!) in order to make the structure of the embedded graph observable, as necessary for their poster use-case. With our library, you \emph{cannot} observe the structure of the graph; you only get your hands on the unique solution to the equations. This means it is unsuitable for some use-cases, but also less disruptive.
 
 We could have implemented our library on top of their observable sharing mechanism, reifying the graph of values as a data structure with explicitly named vertices. We chose to do it differently: Haskell's laziness and the guarantee that an application |x = unsafePerformIO act| is executed at most once makes sharing of the value |x| observable. For each shared value we can thus create a unique mutable cell, and let them refer to each other.
-The graph is never actually turned into a (Haskell-level) data structure and the cells are not (explicitly) numbered or named; instead the graph is represented by the pointers on the heap, cells are implicitly identified by their object identity, and the bookkeeping data for each cell is stored within its mutable fields.
+The graph is never actually turned into a (Haskell-level) data structure and the cells are not (explicitly) numbered or named; instead the graph is represented by the pointers on the heap, cells are implicitly identified by their object identity, and the bookkeeping data for each cell is stored within its mutable fields. One advantage is that reading of values at multiple nodes of the (implicit) graph will share the solver's work, instead of re-reifying the graph and re-solving it.
 
 Looking beyond Haskell we want to point out CoCaml \citep{cocaml}, which allows the Ocaml programmer to observe the structure of knot-tied (coinductive) data, and even process such data while preserving the sharing (so that a |map| over a cyclic list can return a cyclic list).
 
@@ -855,7 +865,9 @@ For the kind of use-cases presented here, logic programming languages like Prolo
 
 \subsubsection{Datafun}
 
-Particularly close to our work, and straddling the functional and logic programming paradigms, is the \emph{Datafun} language \citep{datafun}, a pure and total functional programming language generalizing Datalog, which can declaratively express and compute fixed points of monotone maps on semilattices -- exactly what we are trying to do. Since they tailor their language around this idea, their type system can recognize \emph{monotonic} function definitions.
+Particularly close to our work, and straddling the functional and logic programming paradigms, is the \emph{Datafun} language \citep{datafun}, a pure and total functional programming language generalizing Datalog, which can declaratively express and compute fixed points of monotone maps on semilattices -- exactly what we are trying to do. Since they tailor their language around this idea, their type system can recognize \emph{monotonic} function definitions
+
+Datafun comes with a denotional semantics, which we lack. In their case it helped that as a total language, they do not have to worry about arbitrary recursion and non-termination, avoiding the complications mentioned in \cref{sec:denotional}.
 
 \newcommand{\mfun}{\xrightarrow{\raisebox{-3pt}[0pt][0pt]{+}}}
 
@@ -873,7 +885,7 @@ Recursive equations still have to be manually turned into a single equation and 
 
 We saw that we can extend Haskell with the ability to solve recursive equations involving Boolean and sets, that this extension can be implemented as a library, and that this extension -- arguably -- preserves the nice properties of the language.
 
-Of course there is more to be done. On the practical side there are more data types and operations to be included in the library (natural numbers in various ordering, maps). On the theoretical side, a more rigorous, formal approach to the question of whether this is actually safe and pure is worth pursuing, as is finding a denotational way to describe what the library do.
+Of course there is more to be done. On the practical side there are more data types and operations to be included in the library (natural numbers in various ordering, maps). On the theoretical side, a more rigorous, formal approach to the question of whether this is actually safe and pure is worth pursuing, as is finding a denotational description of what the library does.
 
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{bib}
