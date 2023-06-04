@@ -589,9 +589,9 @@ canThrow e = RB.get (go M.empty e)
 \end{code}
 All we had to do was to use |RBool| instead of |Bool| in the type of the local, use the corresponding operations (|RB.true|, |RB.false| and |RB.|||||) and  project out to normal Booleans at the end (using |RB.get|). A slight blemish is that we also had to insert a call to |RB.id| to not fall over the input |LetRec [("x", Var "x")]|, as explained in \cref{sec:blackhole}.
 
-\subsection{Using all the values}
+\subsection{Using all the values}\label{sec:all-values}
 
-The example above calculates only one final result, whether the whole expression canThrow. A real compiler pass might want to use the analysis result at each node to update the AST (e.g.\ remove redundant calls to |Catch|, or remember analysis results in the AST as GHC would do). To keep the example simple for the paper we do not do that, as the necessary plumbing would obscure the point.
+The example above calculates only one final result, whether the whole expression canThrow. A real compiler pass might want to use the analysis result at each node to update the AST (e.g.\ remove redundant calls to |Catch|, or remember analysis results in the AST as GHC would do). To keep the example simple for the paper we do not do that, as the necessary plumbing would obscure the point (see \cref{sec:proganalexp} for the complete function).
 
 But our library does allow it: we can use |RB.get| within the function to get the analysis result for \emph{any} subexpression and return a changed AST accordingly, e.g.
 \restorecolumns
@@ -901,6 +901,13 @@ A simple implementation could look like this:
 
 \typeout{(./code/Cell.lhs)} % For latexmk
 %include ./code/Cell.lhs
+
+\section{Program analysis exampels}\label{sec:proganalexp}
+
+In \cref{sec:all-values} we pointed out that one advantage of our library is that it not only allows defining mutually recursive equations, but (lazily) query that graph as we go. In our example, we rewrite |Case e| to |e| when the analysis proves that |e| cannot throw. The full code of the analysis and transformation pass is a bit unwieldy, as it returns both the analysis result and the modified code, so we put it into this appendix.
+
+\typeout{(./code/CanThrow3.lhs)} % For latexmk
+%include ./code/CanThrow3.lhs
 
 
 \ifpure
