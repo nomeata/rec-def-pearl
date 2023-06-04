@@ -608,7 +608,7 @@ We'd have to be careful that the |RBool| returned by |go| does not depend on any
 
 %The ability to query each “vertex” as we go sets this approach apart from other idioms with a
 
-\subsection{Alternatives}
+\subsection{Alternative approaches}\label{sec:casestudyalts}
 What would we do if we did not have |RBool| at our disposal? Here are some common options:
 \begin{itemize}
 \item We can perform an explicit fixpoint analysis in the |LetRec| case: Initialize the |env_bind| with all variables mapped to |False|, descend, check if now any analysis result has changed, and if so, re-analyze all of them, until we found a solution.
@@ -857,9 +857,13 @@ Particularly close to our work, and straddling the functional and logic programm
 
 Monotonicity is crucial for the existence and uniqueness of a solution (\cref{sec:monotonicity}). We ensure monotonicity by simply restricting the interface (\cref{fig:api}) to only expose monotonic functions. This works, but is rather limiting when it comes to higher-order functions. Assume we would want to support recursively-definable finite \emph{maps} as well. A natural order on finite maps is the point-wise ordering. But with that ordering, higher-order operations like \mbox{|map :: (a -> b) -> RMap k a -> RMap k b|} are only monotonic if their argument is monotonic, and Haskell's type system does not allow us to express that constraint. Without these higher-order functions, however, the map API would be quite impoverished, so we do not support finite maps with the point-wise ordering in our library.\footnote{You might notice the |Data.Recursive.Map| module in the |rec-def| package. This implements maps with the \emph{discrete} ordering on values, where all higher order function arguments are vacuously monotonic, thus avoiding this issue.} Datafun's type system has a separate function arrow $\mfun$ to characterize monotonic functions, and thus supports this use-case quite well.
 
+%Datafun comes with a nice denotational semantics, which we lack so far. The main hurdle we are facing is that mutually recursive |let| builds fixed-points both in Haskell's 
+
 \subsubsection{Hatafun}
 
-Could we have such such a function arrow $\mfun$ in Haskell? This idea is explored by \emph{Hatafun} \citep{hatafun}, an embedding of Datafun into Haskell. It defines |newtype a -+> b = MFun (a -> b)| and its API, if used correctly, only allows monotonic functions.
+Could we have such a function arrow $\mfun$ in Haskell? This idea is explored by \citet{hatafun} with \emph{Hatafun}, an experiment embedding Datafun's type system into Haskell. It defines a |newtype a -+> b = MFun (a -> b)| for monotonic functions and uses type-level computation and Higher Order Abstract Syntax in the style of \citet{polakow} to allow the safe definition of such functions.
+
+Recursive equations still have to be manually turned into a single equation and threaded throuh an the explicit |fix| operator provided by Hatafun; here we believe our approach of using Haskell's |let| to declare complex mutually recursive equations provides significant benefits (as discussed in \cref{sec:casestudyalts}.
 
 \section{Conclusion and further work}
 
@@ -886,6 +890,13 @@ rTrans3 g = M.fromList [ (v, S.toList (go S.empty [v])) | v <- M.keys g ]
                     |  otherwise          =  go (S.insert v seen) (g M.! v ++ vs)
 \end{code}
 
+\section{Fused program analysis and transformation}\label{sec:proganalexp}
+
+In \cref{sec:all-values} we pointed out that one advantage of our library is that it not only allows defining mutually recursive equations, but (lazily) query that graph as we go. In our example, we rewrite |Case e| to |e| when the analysis proves that |e| cannot throw. The full code of the analysis and transformation pass is a bit unwieldy, as it returns both the analysis result and the modified code, so we put it into this appendix.
+
+\typeout{(./code/CanThrow3.lhs)} % For latexmk
+%include ./code/CanThrow3.lhs
+
 \section{The imperative core's implementation}\label{sec:impcoreimpl}
 
 In \cref{sec:impcore} we assumed a module exporting the following API:
@@ -901,13 +912,6 @@ A simple implementation could look like this:
 
 \typeout{(./code/Cell.lhs)} % For latexmk
 %include ./code/Cell.lhs
-
-\section{Program analysis exampels}\label{sec:proganalexp}
-
-In \cref{sec:all-values} we pointed out that one advantage of our library is that it not only allows defining mutually recursive equations, but (lazily) query that graph as we go. In our example, we rewrite |Case e| to |e| when the analysis proves that |e| cannot throw. The full code of the analysis and transformation pass is a bit unwieldy, as it returns both the analysis result and the modified code, so we put it into this appendix.
-
-\typeout{(./code/CanThrow3.lhs)} % For latexmk
-%include ./code/CanThrow3.lhs
 
 
 \ifpure
