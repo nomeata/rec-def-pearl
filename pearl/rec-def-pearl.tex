@@ -2,7 +2,7 @@
 \documentclass[manuscript,review,screen,acmsmall]{acmart}
 
 \newif\ifpure
-\puretrue
+\purefalse
 
 \usepackage[capitalise,nameinlink,noabbrev]{cleveref}
 \usepackage{textgreek}
@@ -56,13 +56,17 @@
 
 % all types
 %format Exp           = "\StyleType{Exp}"
+%format ExpF          = "\StyleType{ExpF}"
+%format RWE           = "\StyleType{RWE}"
 %format Graph         = "\StyleType{Graph}"
 %format Bool          = "\StyleType{Bool}"
 %format Map           = "\StyleType{Map}"
 %format M.Map         = "\StyleType{M.Map}"
 %format Set           = "\StyleType{Set}"
 %format S.Set         = "\StyleType{S.Set}"
+%format Eq            = "\StyleType{Eq}"
 %format Ord           = "\StyleType{Ord}"
+%format Show          = "\StyleType{Show}"
 %format RSet          = "\StyleType{RSet}"
 %format RS.RSet       = "\StyleType{RS.RSet}"
 %format RMap          = "\StyleType{RMap}"
@@ -80,6 +84,18 @@
 %format RDualBool     = "\StyleType{RDualBool}"
 %format RDB.RDualBool = "\StyleType{RDB.RDualBool}"
 
+%format JoinSemiLattice          = "\StyleType{JoinSemiLattice}"
+%format BoundedJoinSemiLattice          = "\StyleType{BoundedJoinSemiLattice}"
+%format TransferAlgebra          = "\StyleType{TransferAlgebra}"
+%format Proxy          = "\StyleType{Proxy}"
+%format Monad          = "\StyleType{Monad}"
+%format MonadDatafix   = "\StyleType{MonadDatafix}"
+%format Domain          = "\StyleType{Domain}"
+%format Denotation          = "\StyleType{Denotation}"
+%format DepM          = "\StyleType{DepM}"
+%format IsBase          = "\StyleType{IsBase}"
+%format TF          = "\StyleType{TF}"
+
 % all constructors
 %format Var    = "\StyleConstr{Var}"
 %format Throw  = "\StyleConstr{Throw}"
@@ -88,10 +104,21 @@
 %format App    = "\StyleConstr{App}"
 %format Let    = "\StyleConstr{Let}"
 %format LetRec = "\StyleConstr{LetRec}"
+%format VarF    = "\StyleConstr{VarF}"
+%format ThrowF  = "\StyleConstr{ThrowF}"
+%format CatchF  = "\StyleConstr{CatchF}"
+%format LamF    = "\StyleConstr{LamF}"
+%format AppF    = "\StyleConstr{AppF}"
+%format LetF    = "\StyleConstr{LetF}"
+%format LetRecF = "\StyleConstr{LetRecF}"
+%format Fix     = "\StyleConstr{Fix}"
 %format True   = "\StyleConstr{True}"
 %format False  = "\StyleConstr{False}"
+%format RTrue   = "\StyleConstr{RTrue}"
+%format RFalse  = "\StyleConstr{RFalse}"
 %format MkRSet = "\StyleConstr{MkRSet}"
 %format MkCell = "\StyleConstr{MkCell}"
+%format MkRWE = "\StyleConstr{MkRWE}"
 
 \definecolor[named]{Set3a}{cmyk}{0.60,0.00,0.30,0.00}
 \definecolor[named]{Set3b}{cmyk}{0.00,0.45,0.50,0.00}
@@ -299,9 +326,9 @@ fromList [(1,[1,2,3]),(2,[1,2,3]),(3,[3])]
 
 \subsection{Contributions}
 
-From the user’s point of view, that is almost all there is  to say: There is a library of types (sets, Booleans, maps) you can use like the conventional types, and suddenly your favorite knot-tying tricks work even better. In \cref{sec:exploration} we'll explore this library from the user's point of view, followed by a larger program analysis case-study in \cref{sec:casestudy}. Then we take a look at how the library works under the hood (\cref{sec:impl}), and point out some limitations (\cref{sec:limitations}). Finally we take a brief glance at related approaches (\cref{sec:related}).
+From the user’s point of view, that is almost all there is  to say: There is a library of types (sets, Booleans, maps) you can use like the conventional types, and suddenly your favorite knot-tying tricks work even better. In \cref{sec:exploration} we'll explore this library from the user's point of view some more, followed by a larger program analysis case-study in \cref{sec:casestudy}. Then we take a look at how the library works under the hood (\cref{sec:impl}), and point out some limitations (\cref{sec:limitations}). Finally we take a brief glance at related approaches (\cref{sec:related}).
 
-\medskip\noindent
+%\medskip\noindent
 
 The main contribution of this paper is to demonstrate that we can make more data types recursively definable, and thus solve more problems elegantly and declaratively.
 This can be implemented as a regular Haskell library\footnote{\url{https://hackage.haskell.org/package/rec-def}}, using GHC's |unsafePerformIO| primitive under the hood, but providing a \emph{safe} and \emph{pure} interface.
@@ -385,7 +412,7 @@ The second equation generalizes to all operations in the API, giving them a stra
 
 \subsection{Recursion!}
 
-The difference is that with |RSet|, \emph{recursively defined expressions work!} For example, using the ordinary |Set| from |Data.Set| (imported qualified as |S|), evaluating recursive expressions tends to hang:
+The difference is that with |RSet|, \emph{recursively defined expressions work!} For example, using the ordinary |Set| from |Data.Set| (imported |qualified as S|), evaluating recursive expressions tends to hang:
 \begin{code}
 ghci> let s = S.insert 42 s in s
 fromList ^CInterrupted.
@@ -464,15 +491,15 @@ True
 These data types -- |RSet|, |RBool|, |RDualBool| -- are not silos, and you will find among the functions in \cref{fig:api} some that connect these types: negation on Booleans, member checks on sets, the emptiness check on sets, and the function |when|, which guards a set depending on a boolean.
 This means that even recursive expressions involving multiple of these types will produce a result.
 
-So why does |RS.member| return a |RBool|, but |null| returns a |RDualBool|? And why is there no function |not :: RBool -> RBool|? It is because all functions involved here must be \emph{monotonic}: smaller arguments must lead to smaller results. And because the empty set is smaller than non-empty sets, |RS.member| must return a |RBool| (where |False| is smaller than |True|), but |null| must go to |RDualBool| (where |True| is smaller than |False|).
+So why does |RS.member| return a |RBool|, but |RS.null| returns a |RDualBool|? And why is there no function |RB.not :: RBool -> RBool|? It is because all functions involved here must be \emph{monotonic}: smaller arguments must lead to smaller results. And because the empty set is smaller than non-empty sets, |RS.member| must return a |RBool| (where |False| is smaller than |True|), but |RS.null| must go to |RDualBool| (where |True| is smaller than |False|).
 
-If we did not pay attention to this while defining the API, and added non-monotonic functions (like |not :: RBool -> RBool|), the user would be  able to write equations that do not have a solution, such as
+If we did not pay attention to this while defining the API, and added non-monotonic functions (like |RB.not :: RBool -> RBool|), the user would be  able to write equations that do not have a solution, such as
 |let x = not x|,
 and we would like to statically rule that out.
 
 The underlying bit of theory is the theorem that a monotone function $f : A \to A$ on a partially ordered set $A$ with least element $\bot \in A$ and finite height has a unique least fixed point. This is well-known (e.g.\ see \citep{lazyleast}), and if the sentence means something to you, you probably already saw it coming. And if it doesn't, it does not matter for reading this paper.
 
-This also explains why some functions from the underlying ordinary data type (such as |Data.Set|'s |difference|) are not available, as they are not monotonic.
+This explains why some functions from the underlying ordinary data type (such as |Data.Set|'s |difference|) are not available, as they are not monotonic.
 
 \subsection{Termination}
 
@@ -486,7 +513,7 @@ So we cannot allow this function for |RSet| if we want to guarantee a result for
 
 For the theoretically inclined, this plays into the “$A$ has finite height” requirement in the theorem above. You might be irked that the type |Set a|, ordered by subset inclusion, does not actually have finite height (if |a| is not finite). With the current API (without functions like |map|) for every \emph{finite} |RSet| expression there are only finitely many possible members, and thus the relevant “subtype” has finite height, and all is well again.
 
-It would not be unreasonable, however, to add |map| to the |RSet| API, as it may be quite useful for some applications, and maybe in these applications the equation have a finite solution just fine. If we'd do that, we could no longer \emph{guarantee} termination for all possible expressions (as shown by the example above), but if expression yields a result, it will be the least fixed point of the defining equation. One can argue that this would be fine for a Haskell library, as Haskell programmers are used to programming around non-termination anyways.
+It would not be unreasonable, however, to add |map| to the |RSet| API, as it may be quite useful for some applications, and maybe in these applications the equation have a finite solution just fine. If we'd do that, we could no longer \emph{guarantee} termination for all possible expressions (as shown by the example above), but if an expression yields a result, it will be the least fixed point of the defining equation. One can argue that this would be fine for a Haskell library, as Haskell programmers are used to deal with partiality due to non-termination.
 
 \subsection{The black hole}\label{sec:blackhole}
 
@@ -628,11 +655,10 @@ GHC does this, as explained in \citet[Section 6.6]{modular}, but again at the co
 
 \item Another approach is to gather the full data flow problem from the \emph{whole} AST, solve it globally (thus also avoiding the problem mentioned in the previous bullet), and then distributing the analysis again to where we need it. This is reminiscent of how a constrained-based type inference algorithm works.
 
-It is a satisfying thought that this approach frees the solving algorithm from having to follow the syntactic nesting structure of the program, and that the repeated passes of the fixpoint iteration do not have to traverse and re-analyze the AST over and over. Instead it only sees the pure, distilled data-flow equations.
+It is a satisfying to know that the solving algorithm is free from having to follow the syntactic nesting structure of the program, and that the repeated passes of the fixpoint iteration do not have to traverse and re-analyze the AST over and over. The solver only sees the pure, distilled data-flow equations.
 
 There are, however, petty practical issues with this approach (representing the equations as data, uniquely naming the cells, the separate passes for collecting the equations and using the results).
-At this point, one is likely going to hide this bookkeeping in a suitable monad, which can recover some of the lost elegance, but if the code could otherwise be written as pure functions, that is still quite a price to pay.%
-\footnote{See \url{https://hackage.haskell.org/package/datafix-0.0.1.0/docs/Datafix-Denotational.html\#v:datafix} for an attempt.}
+At this point, one is likely going to hide this bookkeeping in a suitable monad, which can recover some of the lost elegance, but if the code could otherwise be written as pure functions, that is still quite a price to pay -- see \cref{sec:datfix} for where one such attempt led to.
 \end{itemize}
 
 When our library is applicable, it allows us to retain the concise elegance of the pure code that does not bother with the “how” of solving equations, while under the hood the solver has a comprehensive global view of the problem.
@@ -881,6 +907,35 @@ Could we have such a function arrow $\mfun$ in Haskell? This idea is explored by
 
 Recursive equations still have to be manually turned into a single equation and threaded through an the explicit |fix| operator provided by Hatafun; here we believe our approach of using Haskell's |let| to declare complex mutually recursive equations provides significant benefits (as discussed in \cref{sec:casestudyalts}.
 
+\subsection{Data flow libraries in Haskell}\label{sec:datafix}
+
+\Citet{datafix} also observes that compiler analyses implemented in pure functional languages tend to mix specifying the data flow equations with the actual solving, and that ideally solving ought to be independent of the syntactic nesting structure of the input program, echoing our concerns in \cref{sec:casestudyalts}. His \emph{datafix} library explores a monadic solution and can handle our case study, but only with significant refactoring:
+\begin{itemize}
+\item The |Exp| data type needs to be re-phrased using open recursion:
+\begin{code}
+data ExpF r =  VarF V | LamF V r | AppF r r | ThrowF | CatchF r | LetRecF [(V, r)] r
+data Exp = Fix (ExpF Exp)
+\end{code}
+\item A generic traversal for this data type needs to be written, but only once for all analyses and passes.
+\item Then our actual analysis/transformation pass can be implemented. The snippet corresponding to \cref{sec:all-values} would be
+\begin{code}
+transferFunctionAlg :: TransferAlgebra RWE
+transferFunctionAlg _ _ env e = case e of
+  …
+  CatchF e -> do
+    MkRWE can_throw e <- e
+    let new_e  | RTrue <- can_throw  = Fix $ CatchF e
+               | otherwise           = e
+    pure (MkRWE RFalse new_e)
+\end{code}
+where |RWE| is a tuple of a Boolean and an expression.
+\end{itemize}
+The complete code, provided by Sebastian Graf, is listed in \cref{sec:datafix-code}.
+
+Compared to our library, datafix provides more flexibility: I is not restricted to equations and solving strategies that lead to a unique solution, independent of the evaluation strategy, but is at liberty to pragmatically make conservative approximations. Also, the non-recursive description of passed based on an openly-recursive data type may enable the fusion of consecutive compiler passes.
+
+However, it requires significant refactoring (changing the expression data type, for example), and one has to depart from the arguably elegant purely functional style that we started with.
+
 \section{Conclusion and further work}
 
 We saw that we can extend Haskell with the ability to solve recursive equations involving Boolean and sets, that this extension can be implemented as a library, and that this extension -- arguably -- preserves the nice properties of the language.
@@ -912,6 +967,13 @@ In \cref{sec:all-values} we pointed out that one advantage of our library is tha
 
 \typeout{(./code/CanThrow3.lhs)} % For latexmk
 %include ./code/CanThrow3.lhs
+
+\section{Program analysis using datafix}\label{sec:datafix-code}
+
+The same algorithm as in \cref{sec:proganalexp} can be implemented using the datafix library described in \cref{sec:datafix} (code provided by Sebastian Graf):
+
+\typeout{(./code/DFCanThrow.lhs)} % For latexmk
+%include ./code/DFCanThrow.lhs
 
 \section{The imperative core's implementation}\label{sec:impcoreimpl}
 

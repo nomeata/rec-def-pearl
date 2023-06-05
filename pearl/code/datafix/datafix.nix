@@ -2,6 +2,7 @@
 , containers, criterion, deepseq, directory, doctest, filepath, ghc
 , ghc-paths, lattices, pomaps, primitive, QuickCheck, stdenv, tasty
 , tasty-hunit, tasty-smallcheck, text, transformers, turtle, vector
+, lib
 }:
 mkDerivation {
   pname = "datafix";
@@ -28,5 +29,5 @@ mkDerivation {
   ];
   homepage = "https://github.com/sgraf812/datafix";
   description = "Fixing data-flow problems";
-  license = stdenv.lib.licenses.isc;
+  license = lib.licenses.isc;
 }

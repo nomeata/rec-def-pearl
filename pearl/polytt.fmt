@@ -19,6 +19,7 @@
 
 %format {               = "{\char123}"
 %format }               = "{\char125}"
+%format ~               = "{\char126}"
 %format ...             = "{\ldots}"
 
 %let autoSpacing        = False
