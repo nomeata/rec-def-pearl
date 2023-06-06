@@ -444,6 +444,9 @@ eval program = unMono program
 insert :: Ord a => Defn (a -> Set a -+> Set a)
 insert = lam $ \x -> mlam $ \set -> lub (msingleton x) set
 
+test0 :: Defn (Set Int)
+test0 = fix (mlam $ \x -> insert `app` lift 42 `mapp` (mmap `app` lift succ `mapp` x))
+
 test1 :: Defn (Set Int)
 test1 = fix (mlam $ \x -> insert `app` lift 42 `mapp` x)
 
@@ -480,17 +483,16 @@ instance (Ord a, MetaSemiLattice b) => MetaSemiLattice (Map a b) where
   meta_lub = Data.Map.unionWith meta_lub
 
 test3 :: Defn (Graph -> Graph)
-test3 = lam $ \graph ->
-  fix reaches
-  where
-    reaches = mlam $ \graph ->
-      graph
-        `lub` mapWithKey
-          ( lam $ \k -> lam $ \vs ->
-              insert `app` k
-                `mapp` mbind vs (lam $ \v' -> graph ! v')
-          )
-          graph
+test3 = lam $ \edge_graph ->
+  let reaches = mlam $ \graph ->
+        edge_graph
+          `lub` mapWithKey
+            ( lam $ \k -> lam $ \vs ->
+                insert `app` k
+                  `mapp` mbind vs (lam $ \v' -> graph ! v')
+            )
+            graph
+   in fix reaches
 
 type V = String
 
