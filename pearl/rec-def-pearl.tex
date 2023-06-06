@@ -916,7 +916,9 @@ Especially the need to thread recursion through a single |fix| is significant he
 
 Contrast that to our code, where only a single map exists, and serves to declare \emph{multiple} equations in the partial order of sets, using knot-tying. The fixed-point iteration then happens on these sets, which can be significantly more efficient.
 
-Note that the focus of Hatafun is the safe definition of monotonic functions that part is rather orthogonal to the question of declaring mutually recursive equations and their approach be improve our library's interface. \Cref{sec:hatafun-proganal} contains an Hatafun implementation of our case study.
+The main aim of Hatafun is to explore an embedding of datafun's type system for monotonic functions in Haskell, using the HOAS approach, and our library could well benefit from that approach. This is rather orthogonal to our idea of declaring mutually recursive equations via Haskell's |let|, which might be useful for Hatafun, too.
+
+\Cref{sec:hatafun-proganal} contains an Hatafun implementation of our case study.
 
 \subsection{Data flow libraries in Haskell}\label{sec:datafix}
 
@@ -1008,7 +1010,7 @@ Yihong Zhang ported the code from \cref{sec:casestudy} as follows:
 \typeout{(./code/HCanThrow.lhs)} % For latexmk
 %include ./code/HCanThrow.lhs
 
-He explained that the use of |unlift| on the expression to be analyzed is unsafe, but ok here, because the expression is invariant here; correctly tracking the monotonicity of user-defined data types like |Exp| is possible, but requires auxiliary functions.
+He explained that the use of |unlift| on the expression to be analyzed is unsafe, but ok here, because the expression is invariant here; correctly tracking the monotonicity of user-defined data types like |Exp| is possible, but requires auxiliary safe API definitions, eventually may generated generically.
 
 More relevant is that, similar as in \cref{sec:hatafun}, this does not set up a system of mutually recursive equations of boolean values, with one variable per AST node, but at each |LetRec| it declares and solves a single equation for the environment as a whole. With nested |LetRec|s, this can blow up the complexity, as explained in \cref{sec:casestudyalts}, which brings us to the next alternative worth considering.
 

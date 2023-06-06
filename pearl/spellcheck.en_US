@@ -1,4 +1,4 @@
-personal_ws-1.1 en 135 
+personal_ws-1.1 en 137 
 ACM
 AST
 AppF
@@ -20,6 +20,7 @@ Expr
 GHC
 GHC's
 Graf
+HOAS
 Hackage
 Hatafun
 ICFP
@@ -65,6 +66,7 @@ cmyk
 coinductive
 combinators
 datafix
+datafun's
 declaratively
 defCellInsert
 definitional
