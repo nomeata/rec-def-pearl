@@ -84,6 +84,8 @@
 %format RDualBool     = "\StyleType{RDualBool}"
 %format RDB.RDualBool = "\StyleType{RDB.RDualBool}"
 
+%format Env          = "\StyleType{Env}"
+%format Defn          = "\StyleType{Defn}"
 %format JoinSemiLattice          = "\StyleType{JoinSemiLattice}"
 %format BoundedJoinSemiLattice          = "\StyleType{BoundedJoinSemiLattice}"
 %format TransferAlgebra          = "\StyleType{TransferAlgebra}"
@@ -899,13 +901,22 @@ Datafun comes with a denotational semantics, which we lack. In their case it hel
 
 Monotonicity is crucial for the existence and uniqueness of a solution (\cref{sec:monotonicity}). We ensure monotonicity by simply restricting the interface (\cref{fig:api}) to only expose monotonic functions. This works, but is rather limiting when it comes to higher-order functions. Assume we would want to support recursively-definable finite \emph{maps} as well. A natural order on finite maps is the point-wise ordering. But with that ordering, higher-order operations like \mbox{|map :: (a -> b) -> RMap k a -> RMap k b|} are only monotonic if their argument is monotonic, and Haskell's type system does not allow us to express that constraint. Without these higher-order functions, however, the map API would be quite impoverished, so we do not support finite maps with the point-wise ordering in our library.\footnote{You might notice the |Data.Recursive.Map| module in the |rec-def| package. This implements maps with the \emph{discrete} ordering on values, where all higher order function arguments are vacuously monotonic, thus avoiding this issue.} Datafun's type system has a separate function arrow $\mfun$ to characterize monotonic functions, and thus supports this use-case quite well.
 
-%Datafun comes with a nice denotational semantics, which we lack so far. The main hurdle we are facing is that mutually recursive |let| builds fixed-points both in Haskell's 
+\subsubsection{Hatafun}\label{sec:hatafun}
 
-\subsubsection{Hatafun}
+Could we have such a function arrow $\mfun$ in Haskell? This idea is explored by \citet{hatafun} with \emph{Hatafun}, an experiment embedding Datafun's type system into Haskell. It defines a |newtype a -+> b = MFun (a -> b)| for monotonic functions and uses type-level computation and Higher Order Abstract Syntax in the style of \citet{polakow} to allow safe and flexible definitions of such functions.
 
-Could we have such a function arrow $\mfun$ in Haskell? This idea is explored by \citet{hatafun} with \emph{Hatafun}, an experiment embedding Datafun's type system into Haskell. It defines a |newtype a -+> b = MFun (a -> b)| for monotonic functions and uses type-level computation and Higher Order Abstract Syntax in the style of \citet{polakow} to allow the safe definition of such functions.
+For example, the reflexive transitive closure from the introduction can be calculated using Hatafun as follows (code provided by Zhang):
 
-Recursive equations still have to be manually turned into a single equation and threaded through an the explicit |fix| operator provided by Hatafun; here we believe our approach of using Haskell's |let| to declare complex mutually recursive equations provides significant benefits (as discussed in \cref{sec:casestudyalts}.
+\typeout{(./code/HTrans.lhs)} % For latexmk
+%include ./code/HTrans.lhs
+
+We see that some functions are defined using explicit combinators for monotonic functions (|mlam|, |mapp|, |fix|) instead of using Haskell's syntax (|\|, juxtaposition, |let|).
+
+Especially the need to thread recursion through a single |fix| is significant here: The problem hasto be described as a \emph{single} equation in a suitable partial order. So here, the map of reachable nodes is repeatedly recalculated, until a fixed-point is found.
+
+Contrast that to our code, where only a single map exists, and serves to declare \emph{multiple} equations in the partial order of sets, using knot-tying. The fixed-point iteration then happens on these sets, which can be significantly more efficient.
+
+Note that the focus of Hatafun is the safe definition of monotonic functions that part is rather orthogonal to the question of declaring mutually recursive equations and their approach be improve our library's interface. \Cref{sec:hatafun-proganal} contains an Hatafun implementation of our case study.
 
 \subsection{Data flow libraries in Haskell}\label{sec:datafix}
 
@@ -968,12 +979,33 @@ In \cref{sec:all-values} we pointed out that one advantage of our library is tha
 \typeout{(./code/CanThrow3.lhs)} % For latexmk
 %include ./code/CanThrow3.lhs
 
+\section{The case study in related work}
+
+To complete our comparision with related work, in particular Hatafun (\cref{sec:hatafun}) and datafix (\cref{sec:datafix}), we show how the case study from \cref{sec:casestudy} can be solved with these libraries. This is not an explanation of these libraries, but we hope that the listings can still give a useful impression
+
+The implementations were provided by the authors of the respective libraries, for which we are grateful. The following listings have been modified from their original version. They have been formatted to fit this paper.
+
+\subsection{Program analysis using Hatafun}\label{sec:hatafun-proganal}
+
+Zhang ported the code from \cref{sec:casestudy} as follows:
+
+\typeout{(./code/HCanThrow.lhs)} % For latexmk
+%include ./code/HCanThrow.lhs
+
+He explained that the use of |unlift| on the expression to be analysed is unsafe, but ok here, because the expression is invariant here; correctly tracking the monotonicity of user-defined data types like |Exp| is possible, but requires auxillary functions.
+
+More relevant is that, similar as in \cref{sec:hatafun}, this does not set up a system of mutually recursive equations of boolean values, with one variable per AST node, but at each |LetRec| it declares and solves a single requestion for the environment as a whole. With nested |LetRec|s, this can blow up the complexity, as explained in \cref{sec:casestudyalts}, which brings us to the next alternative worth considering.
+
+
 \section{Program analysis using datafix}\label{sec:datafix-code}
 
-The same algorithm as in \cref{sec:proganalexp} can be implemented using the datafix library described in \cref{sec:datafix} (code provided by Sebastian Graf):
+The datafix library menioned in \cref{sec:datafix} was created in particular due to the desire to free the equations to be solved from the syntactic structure of the input program. Sebastian Graf shows how the case study can be implemented using datafix, and went straight for the harder problem of a combined analysis/transformation pass, corresponding to \cref{sec:proganalexp}.
 
 \typeout{(./code/DFCanThrow.lhs)} % For latexmk
 %include ./code/DFCanThrow.lhs
+
+See \cref{sec:datafix} for a discussion of this approach.
+
 
 \section{The imperative core's implementation}\label{sec:impcoreimpl}
 

@@ -461,7 +461,7 @@ mapSingleton :: MetaSemiLattice v => Defn (k -> v -+> Map k v)
 mapSingleton = lift $ \k -> MFun (M.singleton k)
 
 mapWithKey ::
-  (Show k, Show v1, Show v2, Ord k, MonoOps repr) =>
+  (Ord k, MonoOps repr) =>
   repr v s (k -> v1 -> v2) ->
   repr v s (Map k v1) ->
   repr v s (Map k v2)
