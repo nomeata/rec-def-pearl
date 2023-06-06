@@ -350,7 +350,7 @@ The main contributions of this paper are:
 \fi
 
 \begin{acks}
-We like to thanks Sebastian Graf and Claudio Russo, as well as the anonymous reviewers, for their helpful comments.
+This paper would be worse without the constructive feedback from Sebastian Graf, Claudio Russo as well as the anonymous reviewers. We also thank Yihong Zhang and Sebastian Graf for the code snippets in the related work section.
 \end{acks}
 
 \section{Exploration}\label{sec:exploration}
@@ -912,7 +912,7 @@ For example, the reflexive transitive closure from the introduction can be calcu
 
 We see that some functions are defined using explicit combinators for monotonic functions (|mlam|, |mapp|, |fix|) instead of using Haskell's syntax (|\|, juxtaposition, |let|).
 
-Especially the need to thread recursion through a single |fix| is significant here: The problem hasto be described as a \emph{single} equation in a suitable partial order. So here, the map of reachable nodes is repeatedly recalculated, until a fixed-point is found.
+Especially the need to thread recursion through a single |fix| is significant here: The problem has to be described as a \emph{single} equation in a suitable partial order. So here, the map of reachable nodes is repeatedly recalculated, until a fixed-point is found.
 
 Contrast that to our code, where only a single map exists, and serves to declare \emph{multiple} equations in the partial order of sets, using knot-tying. The fixed-point iteration then happens on these sets, which can be significantly more efficient.
 
@@ -981,7 +981,7 @@ In \cref{sec:all-values} we pointed out that one advantage of our library is tha
 
 \section{The case study in related work}
 
-To complete our comparision with related work, in particular Hatafun (\cref{sec:hatafun}) and datafix (\cref{sec:datafix}), we show how the case study from \cref{sec:casestudy} can be solved with these libraries. This is not an explanation of these libraries, but we hope that the listings can still give a useful impression
+To complete our comparison with related work, in particular Hatafun (\cref{sec:hatafun}) and datafix (\cref{sec:datafix}), we show how the case study from \cref{sec:casestudy} can be solved with these libraries. This is not an explanation of these libraries, but we hope that the listings can still give a useful impression
 
 The implementations were provided by the authors of the respective libraries, for which we are grateful. The following listings have been modified from their original version. They have been formatted to fit this paper.
 
@@ -992,14 +992,14 @@ Zhang ported the code from \cref{sec:casestudy} as follows:
 \typeout{(./code/HCanThrow.lhs)} % For latexmk
 %include ./code/HCanThrow.lhs
 
-He explained that the use of |unlift| on the expression to be analysed is unsafe, but ok here, because the expression is invariant here; correctly tracking the monotonicity of user-defined data types like |Exp| is possible, but requires auxillary functions.
+He explained that the use of |unlift| on the expression to be analyzed is unsafe, but ok here, because the expression is invariant here; correctly tracking the monotonicity of user-defined data types like |Exp| is possible, but requires auxiliary functions.
 
-More relevant is that, similar as in \cref{sec:hatafun}, this does not set up a system of mutually recursive equations of boolean values, with one variable per AST node, but at each |LetRec| it declares and solves a single requestion for the environment as a whole. With nested |LetRec|s, this can blow up the complexity, as explained in \cref{sec:casestudyalts}, which brings us to the next alternative worth considering.
+More relevant is that, similar as in \cref{sec:hatafun}, this does not set up a system of mutually recursive equations of boolean values, with one variable per AST node, but at each |LetRec| it declares and solves a single equation for the environment as a whole. With nested |LetRec|s, this can blow up the complexity, as explained in \cref{sec:casestudyalts}, which brings us to the next alternative worth considering.
 
 
 \section{Program analysis using datafix}\label{sec:datafix-code}
 
-The datafix library menioned in \cref{sec:datafix} was created in particular due to the desire to free the equations to be solved from the syntactic structure of the input program. Sebastian Graf shows how the case study can be implemented using datafix, and went straight for the harder problem of a combined analysis/transformation pass, corresponding to \cref{sec:proganalexp}.
+The datafix library mentioned in \cref{sec:datafix} was created in particular due to the desire to free the equations to be solved from the syntactic structure of the input program. Graf shows how the case study can be implemented using datafix, and went straight for the harder problem of a combined analysis/transformation pass, corresponding to \cref{sec:proganalexp}.
 
 \typeout{(./code/DFCanThrow.lhs)} % For latexmk
 %include ./code/DFCanThrow.lhs
