@@ -905,7 +905,7 @@ Monotonicity is crucial for the existence and uniqueness of a solution (\cref{se
 
 Could we have such a function arrow $\mfun$ in Haskell? This idea is explored by \citet{hatafun} with \emph{Hatafun}, an experiment embedding Datafun's type system into Haskell. It defines a |newtype a -+> b = MFun (a -> b)| for monotonic functions and uses type-level computation and Higher Order Abstract Syntax in the style of \citet{polakow} to allow safe and flexible definitions of such functions.
 
-For example, the reflexive transitive closure from the introduction can be calculated using Hatafun as follows (code provided by Zhang):
+For example, the reflexive transitive closure from the introduction can be calculated using Hatafun as follows (code provided by Yihong Zhang):
 
 \typeout{(./code/HTrans.lhs)} % For latexmk
 %include ./code/HTrans.lhs
@@ -979,34 +979,6 @@ In \cref{sec:all-values} we pointed out that one advantage of our library is tha
 \typeout{(./code/CanThrow3.lhs)} % For latexmk
 %include ./code/CanThrow3.lhs
 
-\section{The case study in related work}
-
-To complete our comparison with related work, in particular Hatafun (\cref{sec:hatafun}) and datafix (\cref{sec:datafix}), we show how the case study from \cref{sec:casestudy} can be solved with these libraries. This is not an explanation of these libraries, but we hope that the listings can still give a useful impression
-
-The implementations were provided by the authors of the respective libraries, for which we are grateful. The following listings have been modified from their original version. They have been formatted to fit this paper.
-
-\subsection{Program analysis using Hatafun}\label{sec:hatafun-proganal}
-
-Zhang ported the code from \cref{sec:casestudy} as follows:
-
-\typeout{(./code/HCanThrow.lhs)} % For latexmk
-%include ./code/HCanThrow.lhs
-
-He explained that the use of |unlift| on the expression to be analyzed is unsafe, but ok here, because the expression is invariant here; correctly tracking the monotonicity of user-defined data types like |Exp| is possible, but requires auxiliary functions.
-
-More relevant is that, similar as in \cref{sec:hatafun}, this does not set up a system of mutually recursive equations of boolean values, with one variable per AST node, but at each |LetRec| it declares and solves a single equation for the environment as a whole. With nested |LetRec|s, this can blow up the complexity, as explained in \cref{sec:casestudyalts}, which brings us to the next alternative worth considering.
-
-
-\section{Program analysis using datafix}\label{sec:datafix-code}
-
-The datafix library mentioned in \cref{sec:datafix} was created in particular due to the desire to free the equations to be solved from the syntactic structure of the input program. Graf shows how the case study can be implemented using datafix, and went straight for the harder problem of a combined analysis/transformation pass, corresponding to \cref{sec:proganalexp}.
-
-\typeout{(./code/DFCanThrow.lhs)} % For latexmk
-%include ./code/DFCanThrow.lhs
-
-See \cref{sec:datafix} for a discussion of this approach.
-
-
 \section{The imperative core's implementation}\label{sec:impcoreimpl}
 
 In \cref{sec:impcore} we assumed a module exporting the following API:
@@ -1022,6 +994,33 @@ A simple implementation could look like this:
 
 \typeout{(./code/Cell.lhs)} % For latexmk
 %include ./code/Cell.lhs
+
+\section{The case study in related work}
+
+To complete our comparison with related work, in particular Hatafun (\cref{sec:hatafun}) and datafix (\cref{sec:datafix}), we show how the case study from \cref{sec:casestudy} can be solved with these libraries. This is not an explanation of these libraries, but we hope that the listings can still give a useful impression
+
+The implementations were provided by the authors of the respective libraries, for which we are grateful. The following listings have been modified from their original version. They have been formatted to fit this paper.
+
+\subsection{Program analysis using Hatafun}\label{sec:hatafun-proganal}
+
+Yihong Zhang ported the code from \cref{sec:casestudy} as follows:
+
+\typeout{(./code/HCanThrow.lhs)} % For latexmk
+%include ./code/HCanThrow.lhs
+
+He explained that the use of |unlift| on the expression to be analyzed is unsafe, but ok here, because the expression is invariant here; correctly tracking the monotonicity of user-defined data types like |Exp| is possible, but requires auxiliary functions.
+
+More relevant is that, similar as in \cref{sec:hatafun}, this does not set up a system of mutually recursive equations of boolean values, with one variable per AST node, but at each |LetRec| it declares and solves a single equation for the environment as a whole. With nested |LetRec|s, this can blow up the complexity, as explained in \cref{sec:casestudyalts}, which brings us to the next alternative worth considering.
+
+
+\subsection{Program analysis using datafix}\label{sec:datafix-code}
+
+The datafix library mentioned in \cref{sec:datafix} was created in particular due to the desire to free the equations to be solved from the syntactic structure of the input program. Sebastian Graf shows how the case study can be implemented using datafix, and went straight for the harder problem of a combined analysis/transformation pass, corresponding to \cref{sec:proganalexp}.
+
+\typeout{(./code/DFCanThrow.lhs)} % For latexmk
+%include ./code/DFCanThrow.lhs
+
+See \cref{sec:datafix} for a discussion of this approach.
 
 
 \ifpure
