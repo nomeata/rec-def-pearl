@@ -26,7 +26,3 @@ Thanks for allowing me to revise the paper. I made the following changes:
 * Addressed the minor comments and fixed a bunch of typos.
 
 * Section 4.2 is more explicit the set of equations it solves.
-
-I was not able to produce a usable PDF diff, because the tools I tried (in
-particular pdf-diff) only does page-by-page comparisons, which does not work
-well when the pagebreaks shift around.
