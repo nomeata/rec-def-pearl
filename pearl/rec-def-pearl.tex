@@ -44,6 +44,7 @@
 %format RB                      = "\StyleMod{RB}"
 %format RDB                     = "\StyleMod{RDB}"
 %format Data.Set                = "\StyleMod{Data.Set}"
+%format Data.Proxy              = "\StyleMod{Data.Proxy}"
 %format Data.Set.Internal       = "\StyleMod{Data.Set.Internal}"
 %format Data.Map                = "\StyleMod{Data.Map}"
 %format Data.Recursive.Set      = "\StyleMod{Data.Recursive.Set}"
@@ -660,7 +661,7 @@ GHC does this, as explained in \citet[Section 6.6]{modular}, but again at the co
 It is a satisfying to know that the solving algorithm is free from having to follow the syntactic nesting structure of the program, and that the repeated passes of the fixpoint iteration do not have to traverse and re-analyze the AST over and over. The solver only sees the pure, distilled data-flow equations.
 
 There are, however, petty practical issues with this approach (representing the equations as data, uniquely naming the cells, the separate passes for collecting the equations and using the results).
-At this point, one is likely going to hide this bookkeeping in a suitable monad, which can recover some of the lost elegance, but if the code could otherwise be written as pure functions, that is still quite a price to pay -- see \cref{sec:datfix} for where one such attempt led to.
+At this point, one is likely going to hide this bookkeeping in a suitable monad, which can recover some of the lost elegance, but if the code could otherwise be written as pure functions, that is still quite a price to pay -- see \cref{sec:datafix} for where one such attempt led to.
 \end{itemize}
 
 When our library is applicable, it allows us to retain the concise elegance of the pure code that does not bother with the “how” of solving equations, while under the hood the solver has a comprehensive global view of the problem.
@@ -945,7 +946,7 @@ where |RWE| is a tuple of a Boolean and an expression.
 \end{itemize}
 The complete code, provided by Sebastian Graf, is listed in \cref{sec:datafix-code}.
 
-Compared to our library, datafix provides more flexibility: I is not restricted to equations and solving strategies that lead to a unique solution, independent of the evaluation strategy, but is at liberty to pragmatically make conservative approximations. Also, the non-recursive description of passed based on an openly-recursive data type may enable the fusion of consecutive compiler passes.
+Compared to our library, datafix provides more flexibility: It is not restricted to equations and solving strategies that lead to a unique solution, independent of the evaluation strategy, but is at liberty to pragmatically make conservative approximations. Also, the non-recursive description of passes based on an openly-recursive data type may enable the fusion of consecutive compiler passes.
 
 However, it requires significant refactoring (changing the expression data type, for example), and one has to depart from the arguably elegant purely functional style that we started with.
 
