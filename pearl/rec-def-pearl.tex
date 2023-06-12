@@ -820,19 +820,20 @@ to
 \begin{code}
 let x y = ... (x y) ... y ... in x e
 \end{code}
-without changing the program's meaning. With our library, this change can now make the difference between termination and non-termination:
+without changing the program's meaning. This transformation is called lambda lifting.
+
+With our library, this change can now make the difference between termination and non-termination:
 \begin{code}
 ghci> let rs = RS.insert 42 rs in RS.get rs
 fromList [42]
 ghci> let rs y = RS.insert y (rs y) in RS.get (rs 42)
 fromList ^CInterrupted.
 \end{code}
-
 This is not a simple infelicity of the current implementation, but a fundamental limitation: In the original program, our library can get its (magic, |unsafePerformIO|-powered) hands on a \emph{finite} graph of recursively defined values. In the transformed program there is now a recursive function that endlessly creates \emph{new} values, and our library will never see a complete set of equations. It seems that no (reasonable) implementation of the interface in \cref{fig:api} can solve this problem. (This also shows that a pure implementation of that interface indeed does not exist.)
 
 This limitation exists already in Haskell, albeit in a less severe form: The nice and fast knot-tied |fibs| from the introduction becomes horribly inefficient once you turn it into a recursive \emph{function} (|let fibs x y = x : y  : zipWith (+) (fibs x y) (tail (fibs x y))|).
 
-In that sense, lambda-lifting is only an equivalence as long as we ignore (asymptotic) complexity, and breaking that equivalence may not be as bad as it first seems.
+In that sense, lambda lifting is only an equivalence as long as we ignore (asymptotic) complexity, and breaking that equivalence may not be as bad as it first seems.
 In particular, since an optimizing compiler tends to be careful to not worsen the asymptotic complexity, and will not just willy-nilly break sharing, it will not apply transformations that break in the presence of our library.
 
 \Citet[Fact 3.7]{sabry} points out that merely changing the set of observational equivalences does \emph{not}, in general and on its own, imply that the extended language is no longer pure.
@@ -853,7 +854,7 @@ We know how to describe pure functional programming languages elegantly using de
 
 Unfortunately, so fare we did not find it, mainly for two reasons:
 \begin{itemize}
-\item As discussed in \cref{sec:lim-lambda-lift}, sharing now affects termination. How would a denotational semantics look like that can distinguish tied knots (|let xs = 1 : xs in xs|) from general recursion (|let f x = x : f x in f 1|)?
+\item As discussed in \cref{sec:lim-lambda-lift}, sharing now affects termination. How can we give a denotational semantics so that it distinguishes tied knots (|let xs = 1 : xs in xs|) from general recursion (|let f x = x : f x in f 1|)?
 \item We use |let| to describe both recursion in Haskell's domain, e.g. for recursive functions and knot-tied data structures, as well as for the equations to be solved by our library. This entanglement of two seemingly unrelated partial orders so far resisted disentanglement.
 \end{itemize}
 
@@ -1103,15 +1104,15 @@ fromList ^CInterrupted.
 
 This is not a simple infelicity of the current implementation, but a fundamental limitation: In the original program, our library can get its (magic, |unsafePerformIO|-powered) hands on a \emph{finite} graph of recursively defined values. In the transformed program there is now a recursive function that endlessly creates \emph{new} values, and our library will never see a complete set of equations. It seems that no (reasonable) implementation of the interface in \cref{fig:api} can solve this problem. (By this reasoning we also deduce that a pure implementation of that interface indeed does not exist.)
 
-So does this invalidate our claims that we built a beautiful, well-behaved, pure abstraction? In the end that depends on your expectation: Do you expect that in a pure and lazy language lambda-lifting preserves meaning, including termination? Or is that an additional property of some languages, which we can maybe do without?
+So does this invalidate our claims that we built a beautiful, well-behaved, pure abstraction? In the end that depends on your expectation: Do you expect that in a pure and lazy language lambda lifting preserves meaning, including termination? Or is that an additional property of some languages, which we can maybe do without?
 
-As you ponder this question, note that if you include (asymptotic) resource usage in your expectation of program equivalence, then such lambda-lifting is already rather dangerous in Haskell: The nice and fast knot-tied |fibs| from the introduction becomes horribly inefficient once you turn it into a recursive \emph{function} (|let fibs x y = x : y  : zipWith (+) (fibs x y) (tail (fibs x y))|). Because the lambda-lifting transformation is only an equivalence as long as we ignore (asymptotic) complexity, it seems that breaking that equivalence is not too wicked.
+As you ponder this question, note that if you include (asymptotic) resource usage in your expectation of program equivalence, then such lambda lifting is already rather dangerous in Haskell: The nice and fast knot-tied |fibs| from the introduction becomes horribly inefficient once you turn it into a recursive \emph{function} (|let fibs x y = x : y  : zipWith (+) (fibs x y) (tail (fibs x y))|). Because the lambda lifting transformation is only an equivalence as long as we ignore (asymptotic) complexity, it seems that breaking that equivalence is not too wicked.
 
 \Citet[Fact 3.7]{sabry} points out that merely changing the set of observational equivalences does \emph{not}, in general and on its own, imply that the extended language is no longer pure.
 
 \subsection{Compiler transformations}\label{sec:comptrans}
 
-The compiler tends to share the attitude that (at least asymptotic) complexity is a relevant aspect of the program's semantics, and will thus be careful to preserve (recursive) sharing that is explicit in the source program. Therefore we can be fairly certain that it will not just willy-nilly apply such lambda-lifting to our code.
+The compiler tends to share the attitude that (at least asymptotic) complexity is a relevant aspect of the program's semantics, and will thus be careful to preserve (recursive) sharing that is explicit in the source program. Therefore we can be fairly certain that it will not just willy-nilly apply such lambda lifting to our code.
 
 The same holds for all the other transformations applied by the compiler, such as partial evaluation, case-of-case, worker/wrapper, common subexpression elimination etc.\ \citep{optimiser}. Because our library has these nice equational properties as long as sharing is preserved, we can be fairly certain that all these are still meaning-preserving in the presence of our library.
 
