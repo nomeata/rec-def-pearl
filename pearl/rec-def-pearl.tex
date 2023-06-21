@@ -403,7 +403,7 @@ module Data.Recursive.DualBool where  -- imported as RDB here
 \caption{The API of recursively definable sets and Booleans}\label{fig:api}
 \end{figure}
 
-At the first glance, |RSet| looks like a isomorphic copy of |Set|, with |get :: RSet a -> Set a| and |mk :: Set a -> RSet a| converting between the types, and all the operations on |RSet| behave as their counterpart on |Set|. Let's quickly check that \citep{quickcheck}:
+At the first glance, |RSet| looks like an isomorphic copy of |Set|, with |get :: RSet a -> Set a| and |mk :: Set a -> RSet a| converting between the types, and all the operations on |RSet| behave as their counterpart on |Set|. Let's quickly check that \citep{quickcheck}:
 \begin{code}
 ghci> quickCheck $ \s -> RS.get (RS.mk s) === s
 +++ OK, passed 100 tests.
@@ -686,7 +686,7 @@ The core idea behind the implementation can be explained in two simple steps: Fi
 
 A typical \emph{imperative} API to describe and solve a set of recursive equations provides functions to
 \begin{enumerate}
-\item register the variables, or \emph{cells},that occur in the equations
+\item register the variables, or \emph{cells}, that occur in the equations
 \item define how such a cell is related to other cells
 \item finally read the value of the cells.
 \end{enumerate}
@@ -802,7 +802,7 @@ fromList [42]
 \end{code}
 The call to |insert| allocates a new cell and registers it with the cell in |RS.empty|. But |RS.empty| is a \emph{static} value, and will never be garbage collected!
 
-To fix this, we exploit that once we are done calculating a value (either because we query it using |get|, or because it is needed in the calculation of such a value), it will never change any further. So our propagator API allows “freezing“ a cell, which drops the references to the dependent cells, and the pure wrapper freezes cells after the value is computed.
+To fix this, we exploit that once we are done calculating a value (either because we query it using |get|, or because it is needed in the calculation of such a value), it will never change any further. So our propagator API allows “freezing” a cell, which drops the references to the dependent cells, and the pure wrapper freezes cells after the value is computed.
 
 \section{Caveats}\label{sec:limitations}
 
@@ -852,7 +852,7 @@ The maybe most similar work are the two mechanized proofs that |runST :: ST a ->
 
 We know how to describe pure functional programming languages elegantly using denotational semantics and fixed-point theorems. Domain theory and fixed-point theorems also underpin the data structures presented here. We would therefore expect that our extended language has a nice denotational semantics as well.
 
-Unfortunately, so fare we did not find it, mainly for two reasons:
+Unfortunately, so far we did not find it, mainly for two reasons:
 \begin{itemize}
 \item As discussed in \cref{sec:lim-lambda-lift}, sharing now affects termination. How can we give a denotational semantics so that it distinguishes tied knots (|let xs = 1 : xs in xs|) from general recursion (|let f x = x : f x in f 1|)?
 \item We use |let| to describe both recursion in Haskell's domain, e.g. for recursive functions and knot-tied data structures, as well as for the equations to be solved by our library. This entanglement of two seemingly unrelated partial orders so far resisted disentanglement.
@@ -886,7 +886,7 @@ Both extensions to Haskell are bolder: They break more laws (even referential tr
 We could have implemented our library on top of their observable sharing mechanism, reifying the graph of values as a data structure with explicitly named vertices. We chose to do it differently: Haskell's laziness and the guarantee that an application |x = unsafePerformIO act| is executed at most once makes sharing of the value |x| observable. For each shared value we can thus create a unique mutable cell, and let them refer to each other.
 The graph is never actually turned into a (Haskell-level) data structure and the cells are not (explicitly) numbered or named; instead the graph is represented by the pointers on the heap, cells are implicitly identified by their object identity, and the bookkeeping data for each cell is stored within its mutable fields. One advantage is that reading of values at multiple nodes of the (implicit) graph will share the solver's work, instead of re-reifying the graph and re-solving it.
 
-Looking beyond Haskell we want to point out CoCaml \citep{cocaml}, which allows the Ocaml programmer to observe the structure of knot-tied (coinductive) data, and even process such data while preserving the sharing (so that a |map| over a cyclic list can return a cyclic list).
+Looking beyond Haskell we want to point out CoCaml \citep{cocaml}, which allows the OCaml programmer to observe the structure of knot-tied (coinductive) data, and even process such data while preserving the sharing (so that a |map| over a cyclic list can return a cyclic list).
 
 
 \subsection{Logic programming}
@@ -897,7 +897,7 @@ For the kind of use-cases presented here, logic programming languages like Prolo
 
 Particularly close to our work, and straddling the functional and logic programming paradigms, is the \emph{Datafun} language \citep{datafun}, a pure and total functional programming language generalizing Datalog, which can declaratively express and compute fixed points of monotone maps on semilattices -- exactly what we are trying to do. Since they tailor their language around this idea, their type system can recognize \emph{monotonic} function definitions
 
-Datafun comes with a denotational semantics, which we lack. In their case it helped that as a total language, they do not have to worry about arbitrary recursion and non-termination, avoiding the complications mentioned in \cref{sec:denotional}.
+Datafun comes with a denotational semantics, which we lack. In their case it helped that as a total language, they do not have to worry about arbitrary recursion and non-termination, avoiding the complications mentioned in \cref{sec:denotational}.
 
 \newcommand{\mfun}{\xrightarrow{\raisebox{-3pt}[0pt][0pt]{+}}}
 
