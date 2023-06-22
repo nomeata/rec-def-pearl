@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 cabal update
 cd /home/artifact
 rm -rf rec-def-0.2.1
@@ -12,5 +14,11 @@ cd /home/artifact
 mv /home/artifact/rec-def-0.2.1/dist-newstyle/build/x86_64-linux/ghc-8.8.4/rec-def-0.2.1/doc/html/rec-def/ docs
 
 rm -rf rec-def-0.2.1/dist-newstyle
+rm -rf rec-def-0.2.1/.ghc.environment*
+
+
+cd /home/artifact/program-anal-datafix
+cabal build
+rm -rf dist-newstyle
 
 

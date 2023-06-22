@@ -157,12 +157,20 @@ using `rec-def` (`canThrow2`) succeeds:
     *Main> canThrow2 example4
     True
 
-The file `program-analysis-hatafun.hs` contains the example from Appendix D.1
-using Hatafun.
-
 The files `dominators.hs` and `minesweeper.hs` contain further example without
 comments; they accompany blog posts that you can google for, if you want (but
 this will deanonymize the authors).
+
+The file `program-analysis-hatafun.hs` contains the example from Appendix D.1
+using Hatafun; load it using `ghci program-analysis-hatafun.hs` from the home
+directory.
+
+The directory `program-analysis-datafun` contains the example from Appendix
+D.2. A snapshot of the `datafun` dependency is vendored in that directory. To
+play around with the example, enter that directory and run `cabal repl`, this
+loads the definitions in `Example.hs`, in particular `removeCatch` and some
+examples.
+
 
 ### Building the artifact VM
 

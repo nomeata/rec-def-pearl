@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 # This prepares the official AEC base image to
 #
 #  * install GHC
@@ -24,6 +26,7 @@ tar xaf ./base-image.tar.xz
 mv base-image image
 
 virt-customize \
+	--smp 8 -m 8000 \
 	--install ghc,ghc-doc,cabal-install \
 	--copy-in ../rec-def-0.2.1-anonym.tar.gz:/home/artifact \
 	--copy-in aec-image-prepare.sh:/home/artifact \
@@ -32,6 +35,8 @@ virt-customize \
 	--copy-in aec-code/program-anal.hs:/home/artifact \
 	--copy-in aec-code/dominators.hs:/home/artifact \
 	--copy-in aec-code/minesweeper.hs:/home/artifact \
+	--copy-in aec-code/Hatafun.hs:/home/artifact \
+	--copy-in aec-code/program-anal-hatafun.hs:/home/artifact \
 	--copy-in aec-code/program-anal-datafix:/home/artifact \
 	--run-command 'sudo -u artifact mkdir /home/artifact/.ghc' \
 	--upload bash_history:/home/artifact/.bash_history \
@@ -42,30 +47,27 @@ virt-customize \
 
 echo "Sparsifying"
 du -sh image/disk.qcow
-virt-sparsify image/disk.qcow
+virt-sparsify --inplace image/disk.qcow
 du -sh image/disk.qcow
 
 cp README.md image
 
 echo "Preparing source tarball"
-# Prepare source tarball
 
 rm -rf rec-def-artifact
 
 mkdir rec-def-artifact
 
 cd rec-def-artifact || exit
-tar xvzf ../../rec-def-0.2.1-anonym.tar.gz
+tar xzf ../../rec-def-0.2.1-anonym.tar.gz
 cd ..
-cp -vr aec-code/* rec-def-artifact
-cp -v README.md aec-image-build.sh aec-image-prepare.sh rec-def-artifact
+cp -r aec-code/* rec-def-artifact
+cp README.md aec-image-build.sh aec-image-prepare.sh rec-def-artifact
 
 virt-copy-out -a image/disk.qcow /home/artifact/docs rec-def-artifact
 
 echo "Artifact source created"
 
-
-# Create final tarballs
 echo "Tarring image"
 tar czf rec-def-artifact-image.tar.gz image
 echo "Tarring source"
