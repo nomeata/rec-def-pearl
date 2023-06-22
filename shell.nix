@@ -1,12 +1,18 @@
 with import <nixpkgs> {};
-
-let
-  myGhc = ghc.withPackages(p : with p; [doctest deepseq ghc-heap-view QuickCheck]);
-in stdenv.mkDerivation rec {
+stdenv.mkDerivation rec {
   name = "env";
-  buildInputs = [ myGhc ghcid haskell-ci ];
+  buildInputs = [
+    (lhs2tex.overrideAttrs( old : {
+      src = fetchFromGitHub {
+         owner = "nomeata";
+         repo = "lhs2tex";
+         # ref = "mychanges";
+         rev = "e2ed3a9ac606869a8e7ed49533c96dab2a0e2cdd";
+         hash = "sha256-b1hH+Wrrqb4Xxi7CXGNeQUo286Lil1Ea9+0ZYVbwe6M=";
+       }
+    ;}))
+  ];
   shellHook = ''
-    export NIX_GHC=${myGhc}/bin/ghc
-    export NIX_GHC_LIBDIR=${myGhc}/lib/ghc-${myGhc.version}
+      unset SOURCE_DATE_EPOCH
   '';
 }
