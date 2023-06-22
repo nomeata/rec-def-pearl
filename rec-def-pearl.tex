@@ -846,7 +846,7 @@ The purity of this library rests on the fact that the equations have a unique so
 
 Our claims above about the safety and purity of the exposed interface are not yet backed by a formal proof. Executing such a proof would first require a formal notion of what “pure” even means, which is not quite clear. Formal criteria have been proposed by \citet{sabry} and \citet{longley}, but they do not easily apply to our setting. Additionally, we’d need a formal framework that allows us to reason about lazy programs with |unsafePerformIO|, |MVar|, laziness and concurrency.
 
-The maybe most similar work are the two mechanized proofs that |runST :: ST a -> a| is safe \citep{runST,runST2}: The contextual equivalences of the pure language still hold when extending the language with |runST|, and thus the extension is fully abstract.  However, their languages are not call-by-need (which is crucial in our case) and not concurrent (which is also relevant), and as discussed in the previous section, our extension preserves some, but not all contextual equivalences.
+The maybe most similar work are the two mechanized proofs that |runST :: (forall s. ST s a) -> a| is safe \citep{runST,runST2}: The contextual equivalences of the pure language still hold when extending the language with |runST|, and thus the extension is fully abstract.  However, their languages are not call-by-need (which is crucial in our case) and not concurrent (which is also relevant), and as discussed in the previous section, our extension preserves some, but not all contextual equivalences.
 
 \subsection{Denotational semantics}\label{sec:denotational}
 
