@@ -12,4 +12,7 @@ stdenv.mkDerivation rec {
        }
     ;}))
   ];
+  shellHook = ''
+      unset SOURCE_DATE_EPOCH
+  '';
 }

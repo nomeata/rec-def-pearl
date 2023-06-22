@@ -1,5 +1,5 @@
 \PassOptionsToPackage{dvipsnames}{xcolor}
-\documentclass[manuscript,review,screen,acmsmall]{acmart}
+\documentclass[manuscript,screen,acmsmall,nonacm]{acmart}
 
 \newif\ifpure
 \purefalse
@@ -199,7 +199,7 @@ Haskell’s laziness allows the programmer to solve some problems naturally and 
 
 It does not have to be that way: We built variants of common pure data structures (Booleans, sets) where recursive definitions are productive. Internally, the infamous |unsafePerformIO| is at work, but the user only sees a beautiful and pure API, and their pretty recursive idioms -- magically -- work again.
 
-%In the end, this raises interesting questions about the precise nature of purity.
+\emph{This is a preprint of a paper to appear at ICFP'23, version \today.}
 \end{abstract}
 
 \begin{CCSXML}
@@ -403,7 +403,7 @@ module Data.Recursive.DualBool where  -- imported as RDB here
 \caption{The API of recursively definable sets and Booleans}\label{fig:api}
 \end{figure}
 
-At the first glance, |RSet| looks like an isomorphic copy of |Set|, with |get :: RSet a -> Set a| and |mk :: Set a -> RSet a| converting between the types, and all the operations on |RSet| behave as their counterpart on |Set|. Let's quickly check that \citep{quickcheck}:
+At the first glance, |RSet| looks like an isomorphic copy of |Set|, with |get :: RSet a -> Set a| and \mbox{|mk :: Set a -> RSet a|} converting between the types, and all the operations on |RSet| behave as their counterpart on |Set|. Let's quickly check that \citep{quickcheck}:
 \begin{code}
 ghci> quickCheck $ \s -> RS.get (RS.mk s) === s
 +++ OK, passed 100 tests.
