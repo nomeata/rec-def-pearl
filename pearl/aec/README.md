@@ -10,12 +10,12 @@ The main artifact is a Haskell library in the form of a Cabal package. It has
 no dependencies besides the GHC library; only the test suite has extra
 dependencies. The virtual image has GHC and these dependencies installed; if
 you want to use a different system, install `ghc` and `cabal` as usual (on
-Debian, run `sudo apt install ghc cabal-install`).
+Debian, run `sudo apt install ghc cabal-install` and then `cabal update`).
 
 For the following steps I assume you are in the home directory of the virtual
 machine, or if you are not using the virtual machine, that you have installed
-ghc and cabal, unpacked the artifact tarball, and entered the directory
-therein.
+ghc and cabal, ran `cabal update` unpacked the artifact tarball, and entered
+the directory therein.
 
 In the virtual machine, the shell and GHCI history is populated with the
 commands below, so just press ↑ if you want to avoid typing.
@@ -69,6 +69,12 @@ The first build step is needed to work around issues runing doctest tests with c
     Test suite doctest: RUNNING...
     doctest: <command line>: cannot satisfy -package QuickCheck
         (use -v for more information)
+
+If you see this error:
+
+    cabal: Cannot test the package rec-def-0.2.1 because none of the components are available to build…
+
+then run `cabal update` and try again.
 
 The sources for the three test suites are in `rec-def-0.2.1/tests/`:
 
@@ -151,6 +157,9 @@ using `rec-def` (`canThrow2`) succeeds:
     *Main> canThrow2 example4
     True
 
+The file `program-analysis-hatafun.hs` contains the example from Appendix D.1
+using Hatafun.
+
 The files `dominators.hs` and `minesweeper.hs` contain further example without
 comments; they accompany blog posts that you can google for, if you want (but
 this will deanonymize the authors).
@@ -162,10 +171,10 @@ curious about it, and document how the artifact vitual image was created.
 
 This creations has been scripted using the `build-aec-image.sh` script, which
 installs packages and copies file into the base image provided by the AEC. Then
-the `prepare-aec-image.sh` script is run inside the image. This also creates
+the `aec-image-prepare.sh` script is run inside the image. This also creates
 the documentation, which is then copied out again.
 
-The `build-aec-image.sh` also creates the artifact source tarball.
+The `aec-image-build.sh` also creates the artifact source tarball.
 
 _Everything below has been copied from the base image README._
 
