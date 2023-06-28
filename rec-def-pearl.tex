@@ -297,9 +297,9 @@ fromList [(1,fromList ^CInterrupted.
 \end{code}
 Now the graph has a \emph{cycle} ($1 \to 2 \to 1$) which makes our code get lost in an infinite loop, until we abort the program.
 
-This is quite disappointing! In order to handle recursive graphs as input as well, we have to implement this in a much more tedious way, maybe with an explicit loop, keeping track of the set of seen vertices (see \cref{sec:imp} if you really want to see it, but the goal is that you shouldn’t have to). It works, and most of us have likely written that idiom before, but we cannot impress our friend with that.
+This is quite disappointing! In order to handle cyclic graphs as input as well, we have to implement this in a much more tedious way, maybe with an explicit loop, keeping track of the set of seen vertices (see \cref{sec:imp} if you really want to see it, but the goal is that you shouldn’t have to). It works, and most of us have likely written that idiom before, but we cannot impress our friend with that.
 
-But it seems it should work: The declarative specification, from which we have derived |rTrans1|, holds for recursive graphs as well, so it does not seem too unreasonable to expect the above code to handle recursive graphs as well. Where does it go wrong? The way we use the lazy map data structure is fine; it helps us to express the set of reachable vertices by way of other such sets.
+But it seems it should work: The declarative specification, from which we have derived |rTrans1|, holds for cyclic graphs as well, so it does not seem too unreasonable to expect the above code to handle cyclic graphs as well. Where does it go wrong? The way we use the lazy map data structure is fine; it helps us to express the set of reachable vertices by way of other such sets.
 The problem is that the set data structure, with its operations |insert| and |union|, is not lazy enough: |union| wants to know the value of its arguments before it can produce something useful, and thus cannot be used in a recursive, knot-tying way.
 
 \subsection{We need better sets!}
@@ -321,7 +321,7 @@ rTrans2 g = M.map (S.toList . RS.get) reaches
     reaches = M.mapWithKey (\v vs -> RS.insert v (RS.unions [ reaches M.! v' | v' <- vs ])) g
 \end{code}
 
-And indeed, this \emph{can} handle recursive graphs, and get the correct result:
+And indeed, this \emph{can} handle cyclic graphs, and get the correct result:
 \begin{code}
 ghci> rTrans2 (M.fromList [(1,[2,3]),(2,[1,3]),(3,[])])
 fromList [(1,[1,2,3]),(2,[1,2,3]),(3,[3])]
@@ -351,7 +351,7 @@ The main contributions of this paper are:
 \fi
 
 \begin{acks}
-This paper would be worse without the constructive feedback from Sebastian Graf, Claudio Russo as well as the anonymous reviewers. We also thank Yihong Zhang and Sebastian Graf for the code snippets in the related work section.
+This paper would be worse without the constructive feedback from Sebastian Graf, Claudio Russo, Peter Thiemann as well as the anonymous reviewers. We also thank Yihong Zhang and Sebastian Graf for the code snippets in the related work section.
 \end{acks}
 
 \section{Exploration}\label{sec:exploration}
