@@ -351,7 +351,7 @@ The main contributions of this paper are:
 \fi
 
 \begin{acks}
-This paper would be worse without the constructive feedback from Sebastian Graf, Claudio Russo, Peter Thiemann as well as the anonymous reviewers. We also thank Yihong Zhang and Sebastian Graf for the code snippets in the related work section.
+This paper would be worse without the constructive feedback from Sebastian Graf, Claudio Russo, Andreas Lochbihler, Peter Thiemann as well as the anonymous reviewers. We also thank Yihong Zhang and Sebastian Graf for the code snippets in the related work section.
 \end{acks}
 
 \section{Exploration}\label{sec:exploration}
@@ -544,7 +544,7 @@ Before we leave the user's point of view and look under the hood of the library,
 
 \subsection{First without recursion}
 
-Let us consider small program analysis of a functional language with lazy let-bindings, (mutual) recursion and exceptions. It should determine whether evaluating an expression may throw an (uncaught) expression.
+Let us consider a small program analysis of a functional language with lazy let-bindings, (mutual) recursion and exceptions. It should determine whether evaluating an expression may throw an (uncaught) expression.
 
 To set the stage, \cref{fig:analast} contains a typical Haskell datatype for its abstract syntax. The |LetRec| constructor takes a list of declarations (each with a name and definition) and a body; all bound variables are in scope in all the right-hand sides and the body.
 Variable names bound in |Lam|, |Let| and |LetRec| shadow outer occurrences. (The resemblance to GHC's intermediate language Core \citep{secrets} is certainly not a coincidence.)
@@ -619,6 +619,8 @@ canThrow e = RB.get (go M.empty e)
         env'      = M.union env_bind env
 \end{code}
 All we had to do was to use |RBool| instead of |Bool| in the type of the local, use the corresponding operations (|RB.true|, |RB.false| and |RB.|||||) and  project out to normal Booleans at the end (using |RB.get|). A slight blemish is that we also had to insert a call to |RB.id| to not fall over the input |LetRec [("x", Var "x")]|, as explained in \cref{sec:blackhole}.
+
+It is worth noting that the environment (|M.Map V RBool|) is still the conventional lazy map, \emph{not} some |RMap|. We use it to tie the knot for the recursive equations on |RBool|, just as we did in the example in the introduction, but no further magic is needed.
 
 \subsection{Using all the values}\label{sec:all-values}
 
@@ -844,19 +846,18 @@ The purity of this library rests on the fact that the equations have a unique so
 
 \subsection{Unproven claims}
 
-Our claims above about the safety and purity of the exposed interface are not yet backed by a formal proof. Executing such a proof would first require a formal notion of what “pure” even means, which is not quite clear. Formal criteria have been proposed by \citet{sabry} and \citet{longley}, but they do not easily apply to our setting. Additionally, we’d need a formal framework that allows us to reason about lazy programs with |unsafePerformIO|, |MVar|, laziness and concurrency.
+Our claims above about the safety and purity of the exposed interface are not yet backed by a formal proof. Executing such a proof would first require a formal notion of what “pure” even means, which is not quite clear. Formal criteria have been proposed by \citet{sabry}, \citet{longley} and \cite{pure-functional}, but they do not easily apply to our setting. Additionally, we’d need a formal framework that allows us to reason about lazy programs with |unsafePerformIO|, |MVar|, laziness and concurrency.
 
 The maybe most similar work are the two mechanized proofs that |runST :: (forall s. ST s a) -> a| is safe \citep{runST,runST2}: The contextual equivalences of the pure language still hold when extending the language with |runST|, and thus the extension is fully abstract.  However, their languages are not call-by-need (which is crucial in our case) and not concurrent (which is also relevant), and as discussed in the previous section, our extension preserves some, but not all contextual equivalences.
 
 \subsection{Denotational semantics}\label{sec:denotational}
 
-We know how to describe pure functional programming languages elegantly using denotational semantics and fixed-point theorems. Domain theory and fixed-point theorems also underpin the data structures presented here. We would therefore expect that our extended language has a nice denotational semantics as well.
-
-Unfortunately, so far we did not find it, mainly for two reasons:
+We know how to describe pure functional programming languages elegantly using denotational semantics and fixed-point theorems. Domain theory and fixed-point theorems also underpin the data structures presented here. We would therefore expect that our extended language has a nice denotational semantics as well, but it does not seem to be straight forward, for two reasons:
 \begin{itemize}
 \item As discussed in \cref{sec:lim-lambda-lift}, sharing now affects termination. How can we give a denotational semantics so that it distinguishes tied knots (|let xs = 1 : xs in xs|) from general recursion (|let f x = x : f x in f 1|)?
 \item We use |let| to describe both recursion in Haskell's domain, e.g. for recursive functions and knot-tied data structures, as well as for the equations to be solved by our library. This entanglement of two seemingly unrelated partial orders so far resisted disentanglement.
 \end{itemize}
+\Citet{clairvoyant} give a denotational semantics with a cost model of lazy evaluation, and in their semantic domain knot-tying can be recognized. We are currently trying to figure out if we can solve the second problem in that setting as well.
 
 \section{Related work}\label{sec:related}
 
