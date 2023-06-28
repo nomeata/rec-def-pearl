@@ -500,7 +500,7 @@ If we did not pay attention to this while defining the API, and added non-monoto
 |let x = not x|,
 and we would like to statically rule that out.
 
-The underlying bit of theory is the theorem that a monotone function $f : A \to A$ on a partially ordered set $A$ with least element $\bot \in A$ and finite height has a unique least fixed point. This is well-known (e.g.\ see \citep{lazyleast}), and if the sentence means something to you, you probably already saw it coming. And if it doesn't, it does not matter for reading this paper.
+The underlying bit of theory is the theorem that a monotone function $f : A \to A$ on a partially ordered set $A$ with least element $\bot \in A$ and finite height has a unique least fixed point. This is well-known consequence of the Knaster-Tarski theorem (e.g.\ see \citep{lazyleast}), and if the sentence means something to you, you probably already saw it coming. And if it doesn't, it does not matter for reading this paper.
 
 This explains why some functions from the underlying ordinary data type (such as |Data.Set|'s |difference|) are not available, as they are not monotonic.
 
