@@ -1,0 +1,349 @@
+\PassOptionsToPackage{dvipsnames}{xcolor}
+\documentclass[manuscript,screen,acmsmall,nonacm]{acmart}
+
+\newif\ifpure
+\purefalse
+
+\usepackage[capitalise,nameinlink,noabbrev]{cleveref}
+\usepackage{textgreek}
+\usepackage{afterpage}
+\usepackage{tikz}
+
+% Ubuntu Light for code
+\usepackage{fontspec}
+\setmonofont{Ubuntu-R}%
+  [ Scale = MatchLowercase
+  , BoldFont = Ubuntu-B
+  , BoldItalicFont = Ubuntu-BI
+  , ItalicFont = Ubuntu-RI
+  , WordSpace = {1.5,1,0}
+  ]
+
+% URL fix
+\makeatletter
+% Inspired by http://anti.teamidiot.de/nei/2009/09/latex_url_slash_spacingkerning/
+% but slightly less kern and shorter underscore
+\let\UrlSpecialsOld\UrlSpecials
+\def\UrlSpecials{\UrlSpecialsOld\do\/{\Url@slash}\do\_{\Url@underscore}}%
+\def\Url@slash{\@ifnextchar/{\kern-.07em\mathchar47\kern-.15em}%
+   {\kern-.0em\mathchar47\kern-.08em\penalty\UrlBigBreakPenalty}}
+\def\Url@underscore{\nfss@text{\leavevmode \kern.06em\vbox{\hrule\@width.3em}}}
+\makeatother
+
+\newenvironment{itquote}{\begin{quote}\itshape}{\end{quote}}
+
+\setcopyright{rightsretained}
+\copyrightyear{2023}
+\acmYear{2023}
+\acmDOI{XXXXXXX.XXXXXXX}
+
+%\acmConference[ICFP'23]{ICFP}{September 04--09,2023}{Seattle, WA}
+
+\citestyle{acmauthoryear}
+
+\begin{document}
+
+\title{More fixpoints, denotationally!}
+
+\author{Joachim Breitner}
+\email{mail@joachim-breitner.de}
+\orcid{0000-0003-3753-6821}
+\affiliation{%
+   \institution{unaffiliated}
+%  \institution{Institute for Clarity in Documentation}
+%  \streetaddress{P.O. Box 1212}
+%  \city{Dublin}
+%  \state{Ohio}
+  \country{Germany}
+%  \postcode{43017-6221}
+}
+
+
+\begin{abstract}
+This document contains unpublished and work-in-progress thoughts about a denotational description of what's presented in the ICFP'23
+\href{https://joachim-breitner.de/publications/rec-def-pearl.pdf}{Functional Pearl: More fixpoints!}
+
+\medskip\noindent
+You are looking at the version from \today.
+\end{abstract}
+
+\maketitle
+
+\section{Introduction}
+
+In the More Fixpoints paper, I extend a lazy pure language (Haskell) with the ability to define recursive equations involving Sets and/or Booleans, and still produce a result. Since the semantics of pure functional programming, and the semantics of solving such equations, can both be elegantly expressed using fixpoints on partial orders, it seems prudent to search for a denotational semantics that can describe this combination. In this document I note down some some experiments in that direction.
+
+
+\section{Recognizing cyclic data structures}
+
+Summary: In the denotational sematnics from “Call-by-Need Is Clairvoyant Call-by-Value” we can define an operator \texttt{rseq} that is $\bot$ if the argument, when fully evaluated, is not a cyclic finite data structure.
+
+TODO, but see \url{https://discourse.haskell.org/t/icfp-pearl-on-rec-def/6626/14?u=nomeata}.
+
+\section{Embedding a fixed-point solver, call by name}
+
+\subsection{Starting point}
+
+\newcommand{\Var}{\text{Var}}
+\newcommand{\Exp}{\text{Exp}}
+\newcommand{\syntax}[1]{\mathbf{#1}}
+\newcommand{\slambda}{\syntax{\lambdaup}}
+\newcommand{\sLet}[3]{\syntax{let}\,#1=#2\,\syntax{in}\,#3}
+\newcommand{\sTrue}{\syntax{True}}
+\newcommand{\sFalse}{\syntax{False}}
+\newcommand{\sIf}[3]{\syntax{if}\,#1\,\syntax{then}\,#2\,\syntax{else}\,#3}
+\newcommand{\sMk}{\syntax{mk}}
+\newcommand{\sGet}{\syntax{get}}
+\newcommand{\sAnd}{\syntax{and}}
+\newcommand{\sOr}{\syntax{or}}
+
+In this section we start with a lambda calculus in ANF with recursive let expressions
+\begin{align*}
+x \in \Var & \\
+e \in \Exp &\Coloneqq x \mid (\slambda x. e) \mid e~x \mid \sLet{x}{e}{e}
+\intertext{add boolean data types}
+e &\Coloneqq \ldots \mid \sTrue \mid \sFalse \mid \sIf{e}{e}{e}
+\end{align*}
+
+\newcommand{\lfp}{\operatorname{lfp}}
+\newcommand{\dlambda}{\mathit{\lambda}}
+\newcommand{\dBool}{\mathbb B}
+\newcommand{\dFalse}{\mathit F}
+\newcommand{\dTrue}{\mathit T}
+\newcommand{\D}[1]{\llbracket #1 \rrbracket}
+
+Let us start with a conventional denotational semantics, call-by-name style. The semantic domain is given by
+\begin{align*}
+D &\simeq V_\bot \\
+V &\simeq (V_\bot \to D) + \dBool
+\end{align*}
+where $\dBool = \{\dFalse, \dTrue\}$, discretely ordered. I write $f$ or $(\dlambda v. f(v))$ for function values in that domain, and $b$ for an arbitrary element of $\dBool$.
+
+
+And the denotation of expressions in an environment is now, as usual
+\begin{align*}
+\D{\cdot}_\cdot &:: \Exp \to (\Var \to V_\bot) \to D \\
+\D{x}_\rho &= \rho(x) \\
+\D{\slambda x. e}_\rho &= \dlambda v. \D{e}_{\rho \sqcup \{x \mapsto v\}} \\
+\D{e~x}_\rho &=
+\begin{cases}
+f(\rho(x)) &\text{if } \D{e}_\rho = \dlambda v. f(v) \\
+\bot &\text{else}
+\end{cases}\\
+\D{\sLet{x}{e_1}{e_2}}_\rho &=
+\D{e_2}_{\rho \sqcup \{x \mapsto d \}}
+\quad \text{where } d = \lfp(\dlambda v. \D{e_1}_{\rho_\sqcup\{x \mapsto v\}}) \\
+\D{\sTrue}_\rho &= \dTrue\\
+\D{\sFalse}_\rho &= \dFalse\\
+\D{\sIf{e_1}{e_2}{e_3}}_\rho &=
+\begin{cases}
+\D{e_2}_\rho &\text{if } \D{e_1}_\rho = \dTrue \\
+\D{e_3}_\rho &\text{if } \D{e_1}_\rho = \dFalse \\
+\bot &\text{else}
+\end{cases}
+\end{align*}
+
+\subsection{Adding recursively defineable booleans}
+
+Now we extend the language as per the More Fixpoints! paper. To keep things simple, we focus on \texttt{RBool} with two operations:
+\begin{align*}
+e &\Coloneqq \ldots \mid \sMk~x \mid \sGet~x \mid \sAnd~x~x \mid \sOr~x~x
+\end{align*}
+
+\subsection{Semantics: First attempt, not monotone}
+
+\newcommand{\rBool}{\mathcal B}
+\newcommand{\rTrue}{\mathcal T}
+\newcommand{\rFalse}{\mathcal F}
+
+We need to extend the semantic domain and the denotation. A naive attempt could be to simply add the two-point lattice $\rBool = \{ \rTrue, \rFalse \}$ with $\rFalse \sqsubset \rTrue$ (and operations $\wedge$ and $\vee$) to the domain, to represent \texttt{RBool} values:
+\begin{align*}
+D &\simeq V_\bot \\
+V &\simeq (V_\bot \to D) + \dBool + \rBool
+\end{align*}
+And then write the denotation of the new constructs as follows
+\begin{align*}
+\D{\sMk~x}_\rho &=
+\begin{cases}
+\rTrue &\text{if } \rho(x) = \dTrue \\
+\rFalse &\text{if } \rho(x)  = \dFalse \\
+\bot &\text{else}
+\end{cases} \\
+\D{\sGet~x}_\rho &=
+\begin{cases}
+\dTrue &\text{if } \rho(x) = \rTrue \\
+\dFalse &\text{if } \rho(x)  = \rFalse \\
+\bot &\text{else}
+\end{cases} \\
+\D{\sAnd~x_1~x_2}_\rho &=
+\begin{cases}
+\rho(x_1) \wedge \rho(x_2) &\text{if } \rho(x_1), \rho(x_2) \in \rBool \\
+\bot &\text{else}
+\end{cases} \\
+\D{\sOr~x_1~x_2}_\rho &=
+\begin{cases}
+\rho(x_1) \vee \rho(x_2) &\text{if } \rho(x_1), \rho(x_2) \in \rBool \\
+\bot &\text{else}
+\end{cases} \\
+\end{align*}
+
+Unfortunately, now the denotation of expressions is not monotonic:
+\[
+\rFalse \sqsubseteq \rTrue
+\quad\text{but}\quad
+\D{\sGet~x}_{\{x \mapsto \rFalse\}} = \dFalse
+\not\sqsubseteq
+\dTrue = \D{\sGet~x}_{\{x \mapsto \rTrue\}}
+\]
+and the whole semantics is no longer well-defined. So we need something different.
+
+\subsection{Semantics: First attempt, manifest equations}
+
+The problem is clearly with $\sGet$: This is the where something special happens, certainly in the implementation, and thus here. Operationally, this function looks at the heap graph, collects the equations there, throws them into a solver, and only returns a value once that solver is done.
+
+This can inspire us here as well: Instead of mixing solving the domain equations for the host langauge in $D$  and the object equations in $\rBool$, we can only collect the equations using $D$, and then solve them separately when $\sGet$ is called.
+
+\newcommand{\dMk}{\operatorname{Mk}}
+\newcommand{\dAnd}{\operatorname{And}}
+\newcommand{\dOr}{\operatorname{Or}}
+
+Therefore, we now treat the operations that produce \texttt{RBool} semantically just like data constructors:
+\begin{align*}
+D &\simeq V_\bot \\
+V &\simeq (V_\bot \to D) + \dBool + D + (D \times D) + (D \times D)
+\end{align*}
+where the three new forms are written $\dMk(d)$, $\dAnd(d,d)$ and $\dOr(d,d)$. All three are non-strict (although for $\dMk$ this isn't improtant).
+
+The semantics of these operations now simply uses the corresponding constructor
+\begin{align*}
+\D{\sMk~x}_\rho &= \dMk(\rho(x)) \\
+\D{\sAnd~x_1~x_2}_\rho &= \dAnd(\rho(x_1), \rho(x_2)) \\
+\D{\sOr~x_1~x_2}_\rho &= \dOr(\rho(x_1), \rho(x_2))
+\end{align*}
+Here we can see that $\sAnd$ and $\sOr$ are \emph{lazy} and thus can be used to tie the knot, as described in the paper.
+
+
+\newcommand{\dsolve}{\operatorname{\textit{solve}}}
+
+All the magic is now in the semantics for $\sGet$, which I define via a helper function
+\[
+\dsolve :: D \to \rBool^\top
+\]
+where $\dsolve$ is the smallest function that solves these equations:
+\begin{align*}
+\dsolve(\sMk(\sTrue)) &= \rTrue \\
+\dsolve(\sMk(\sFalse)) &= \rFalse \\
+\dsolve(\sAnd(d_1,d_2)) &= \dsolve(d_1) \wedge \dsolve(d_2) &&\text{if } \dsolve(d_1),\dsolve(d_2) \ne \top \\
+\dsolve(\sOr(d_1,d_2)) &= \dsolve(d_1) \vee \dsolve(d_2) &&\text{if } \dsolve(d_1),\dsolve(d_2) \ne \top \\
+\dsolve(d) &= \top &&\text{for any other $d$}\\
+\end{align*}
+Some observations:
+\begin{itemize}
+\item This function is \emph{not} monotonic from $D$ to $\rBool^\bot$, but it needs not to be. The definitions are monotonic in the recursive calls, so if you think of it as a infinite system of equations, indexed by the values of $D$, the definition becomes well-defined.
+\item The function only returns a non-$\top$-element if the argument consists of only the \texttt{RBool}-constructors. In particular, if anywhere in the argument there is a $\bot \in D$, this function will return $\top$.
+\item A consequence is that if $\dsolve(d) \ne \top$, then $d$ must consist only of constructors, and in particular no $\bot$ occurs anywhere therein. Such a $d$ is a \emph{maximal} element of $D$.
+\end{itemize}
+
+With that we define
+\[
+\D{\sGet~x}_\rho =
+\begin{cases}
+\dFalse &\text{if } \dsolve(\rho(x)) = \rFalse \\
+\dTrue &\text{if } \dsolve(\rho(x)) = \rTrue \\
+\bot  &\text{if } \dsolve(\rho(x)) = \top
+\end{cases}
+\]
+
+More observations:
+\begin{itemize}
+\item Again, the mapping from $\mathcal B^T \to D$ therein is not monotonic, but that is not a problem.
+
+But the right-hand-side better be monotonic as a function of $\rho(x) \in D$, but that is the case:
+Assume
+$\rho_1(x) \sqsubset \rho_2(x)$.
+So $\rho_1(x)$ is not a maximal element, therefore $\dsolve(\rho_1(x)) = \top$, hence $\D{\sGet~x}_{\rho_1} = \bot$, which suffices for
+$\D{\sGet~x}_{\rho_1} \sqsubseteq \D{\sGet~x}_{\rho_2}$.
+
+\item The function is not continuous: Consider the sequence $d_i$ defined as
+\[
+\bot
+\sqsubset \dAnd(\dMk(\dTrue), \bot)
+\sqsubset \dAnd(\dMk(\dTrue), \dAnd(\dMk(\dTrue), \bot))
+\sqsubset \cdots
+\]
+with limit $d_\omega = (\mu d, \dAnd(\dMk(\dTrue), d))$. We have
+\[
+\D{\sGet~x}_{x \mapsto d_i} = \bot
+\]
+for all $i$, but
+\[
+\D{\sGet~x}_{x \mapsto d_\omega} = \dTrue.
+\]
+
+But we still get a well-defined denotational semantics, because $D$ is a chain-complete partial order, on such a partial order, every monotone function has a least fixed point (which can be found using transfinite iteration).
+
+\textbf{Open question:} Allowing non-continuous functions here means we have to re-interpret the domain equations above so that $\to$ denotes the space of monotonic functions. I do not know if we can even solve the domain equation then.
+
+\item This semantics is more defined that what we can implement, because $\dsolve$ works even in cases where we did not tie the knot. So we not only get
+\[
+\D{\sLet{x}{\sAnd~x~x}{x}} = \dFalse
+\]
+as we expect, but also
+\[
+\D{\sLet{x}{(\slambda y. \sAnd~(x~y) ~(x~y))}{x~y}} = \dFalse
+\]
+which we not what we actually get in the implementation.
+
+The problem is that our semantics is call-by-name, not call-by-need, so we cannot really distinguish the two.
+
+This can be fixed by elaborating the semantics along the lines of “Call-by-Need Is Clairvoyant Call-by-Value” and forcing  $\D{\sGet~x}_\rho = \bot$ if $\rho(x)$ isn't knot-tied.
+(\emph{I have TODO that in another section below.})
+
+It seems that that semantics will simply be less defined than this one, but agree when they are both not bottom, so this is already useful for fast-and-lose reasoning.
+
+\end{itemize}
+
+\subsection{Equational reasoning}
+
+\subsubsection{Some work}
+
+Is this semantics useful? It seems we can do some amount of equational reasoning. Usual equations like
+\[
+\D{(\slambda x. e[x])~y} = \D{e[y]}
+\]
+hold as usual. But we can prove program equations like
+\[
+\D{\sGet~(\sAnd~x~y)} = \D{(\sGet~x) \syntax{\&\&!} (\sGet~y)}
+\]
+where $\syntax{\&\&!}$ a strict conjunction operator and I’m liberal with the ANF. (\emph{TODO: Spell out the proof.})
+
+\subsubsection{Some things do not work}
+
+Unfortunately, desirable identities like the following do not seem to hold
+\begin{align*}
+\D{\sAnd~x~y} &= \D{\sAnd~y~x} \\
+\D{\sAnd~x~x} &= \D{\sOr~x~x}
+\end{align*}
+because the denotation $D$ captures the full boolean formula, and not some denotation thereof, only to be interpreted by $\dsolve$.
+
+Can this be solved? Can we somehow inline the effect of $\dsolve$ into the denotational of $\sAnd$, without breaking the well-definedness of the semantics?
+
+\subsection{Other domains}
+
+The above isn’t very specific to the boolean domain $\rBool$, and should work without much changes for other domains $A$ such as $\mathcal P(\mathbb N)$ or $\mathcal P_{\text{fin}}(\mathbb N)$: All operations are modelled as constructors in $D$, and then $\dsolve$ works on $A^\top$.
+
+This even does the right thing for non-complete domains such as $\mathcal P_{\text{fin}}(\mathbb N)$: Buy adjoining the $\top$, and letting all operations map $\top$ to $\top$, a program like
+\[
+\texttt{let x = RS.insert 0 (RS.map (+1) x) in x}
+\]
+will be solved as $\top$ by $\dsolve$ and thus end up being $\bot$, as it should.
+
+If we want to model $\texttt{RMap a b}$, where values from $D$ are stored, but not looked at by $\dsolve$, the argument for why $\D{\sGet~x}$ is continuous is more involved, as we cannot simply argue via maximality, but may need some kind of parametricity argument.
+
+\section{Embedding a fixed-point solver, call by need}
+
+As mentioned above, the semantics is too liberal: The real \texttt{get} only works when on a knot-tied formula, but the above semantics can solve infinite sets of equations.
+
+To fix this, we have to use \texttt{rseq} in \texttt{get}.
+
+\end{document}
