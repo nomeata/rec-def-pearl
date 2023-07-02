@@ -535,7 +535,7 @@ ghci> let x = RS.unions [x] in RS.get x
 fromList []
 \end{code}
 
-This is a little stumbling block when using this library. And while programmers are unlikely to write |let x = x| directly, the same thing can happen when tying the knot via a lazy data structure. In that case, the programmer is advised to insert a semantic identity function in a suitable position; the API provides |RS.id :: Set a -> Set a| for that purpose.
+This is a little stumbling block when using this library. And while programmers are unlikely to write |let x = x| directly, the same thing can happen when tying the knot via a lazy data structure. In that case, the programmer is advised to insert a semantic identity function in a suitable position; the API provides |RS.id :: RSet a -> RSet a| for that purpose.
 A programming language that integrates these features first-class could take care of this automatically.
 
 \section{Case study: a program analysis}\label{sec:casestudy}
