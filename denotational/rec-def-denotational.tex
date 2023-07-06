@@ -1,9 +1,6 @@
 \PassOptionsToPackage{dvipsnames}{xcolor}
 \documentclass[manuscript,screen,acmsmall,nonacm]{acmart}
 
-\newif\ifpure
-\purefalse
-
 \usepackage[capitalise,nameinlink,noabbrev]{cleveref}
 \usepackage{textgreek}
 \usepackage{afterpage}
@@ -41,6 +38,48 @@
 
 \citestyle{acmauthoryear}
 
+
+\newcommand{\syntax}[1]{\mathbf{#1}}
+\newcommand{\Var}{\text{Var}}
+\newcommand{\Exp}{\text{Exp}}
+\newcommand{\Typ}{\text{Typ}}
+\newcommand{\tBool}{\syntax{Bool}}
+\newcommand{\tRBool}{\syntax{RBool}}
+\newcommand{\slambda}{\syntax{\lambdaup}}
+\newcommand{\sLet}[3]{\syntax{let}\,#1=#2\,\syntax{in}\,#3}
+\newcommand{\sTrue}{\syntax{True}}
+\newcommand{\sFalse}{\syntax{False}}
+%\newcommand{\sIf}{\syntax{if}}
+\newcommand{\sIf}[3]{\syntax{if}\,#1\,\syntax{then}\,#2\,\syntax{else}\,#3}
+\newcommand{\sMk}{\syntax{mk}}
+\newcommand{\sGet}{\syntax{get}}
+\newcommand{\sAnd}{\syntax{and}}
+\newcommand{\sOr}{\syntax{or}}
+\newcommand{\sId}{\syntax{id}}
+
+\newcommand{\dBool}{\mathbb B}
+\newcommand{\dFalse}{\mathbf{f}}
+\newcommand{\dTrue}{\mathbf{t}}
+
+\newcommand{\rBool}{\mathscr B}
+\newcommand{\rTrue}{\mathscr{t}}
+\newcommand{\rFalse}{\mathscr{f}}
+
+\newcommand{\dRBool}{\mathcal F}
+
+\newcommand{\lfp}{\operatorname{lfp}}
+\newcommand{\dlambda}{\mathit{\lambda}}
+\newcommand{\dMk}{\operatorname{Mk}}
+\newcommand{\dAnd}{\operatorname{And}}
+\newcommand{\dId}{\operatorname{Id}}
+\newcommand{\dOr}{\operatorname{Or}}
+\newcommand{\D}[1]{\llbracket #1 \rrbracket}
+\newcommand{\tV}[1]{\mathcal V(#1)}
+\newcommand{\tD}[1]{\mathcal D(#1)}
+
+
+\allowdisplaybreaks
+
 \begin{document}
 
 \title{More fixpoints, denotationally!}
@@ -73,56 +112,70 @@ You are looking at the version from \today.
 
 In the More Fixpoints paper, I extend a lazy pure language (Haskell) with the ability to define recursive equations involving Sets and/or Booleans, and still produce a result. Since the semantics of pure functional programming, and the semantics of solving such equations, can both be elegantly expressed using fixpoints on partial orders, it seems prudent to search for a denotational semantics that can describe this combination. In this document I note down some some experiments in that direction.
 
+\section{Denotational semantics}
 
-\section{Recognizing cyclic data structures}
+The most promising approach so far is to turn the introduction forms of our recursively defineable data types into regular constructors, and move all magic into the \texttt{get} operation.
 
-Summary: In the denotational sematnics from “Call-by-Need Is Clairvoyant Call-by-Value” we can define an operator \texttt{rseq} that is $\bot$ if the argument, when fully evaluated, is not a cyclic finite data structure.
+\subsection{The language}
 
-TODO, but see \url{https://discourse.haskell.org/t/icfp-pearl-on-rec-def/6626/14?u=nomeata}.
+As usual, we focus on a small core language to demonstrate our ideas. For our purposes, let us used a simply typed lambda calculus with recursive bindings, extended with the conventional \texttt{Bool} data type and our \texttt{RBool}:
 
-\section{Embedding a fixed-point solver, call by name}
-
-\subsection{Starting point}
-
-\newcommand{\Var}{\text{Var}}
-\newcommand{\Exp}{\text{Exp}}
-\newcommand{\syntax}[1]{\mathbf{#1}}
-\newcommand{\slambda}{\syntax{\lambdaup}}
-\newcommand{\sLet}[3]{\syntax{let}\,#1=#2\,\syntax{in}\,#3}
-\newcommand{\sTrue}{\syntax{True}}
-\newcommand{\sFalse}{\syntax{False}}
-\newcommand{\sIf}[3]{\syntax{if}\,#1\,\syntax{then}\,#2\,\syntax{else}\,#3}
-\newcommand{\sMk}{\syntax{mk}}
-\newcommand{\sGet}{\syntax{get}}
-\newcommand{\sAnd}{\syntax{and}}
-\newcommand{\sOr}{\syntax{or}}
 
 In this section we start with a lambda calculus in ANF with recursive let expressions
 \begin{align*}
+\tau \in \Typ &\Coloneqq \tau \to \tau \mid \tBool \mid \tRBool \\
 x \in \Var & \\
-e \in \Exp &\Coloneqq x \mid (\slambda x. e) \mid e~x \mid \sLet{x}{e}{e}
-\intertext{add boolean data types}
-e &\Coloneqq \ldots \mid \sTrue \mid \sFalse \mid \sIf{e}{e}{e}
+e \in \Exp &\Coloneqq x \mid (\slambda x. e) \mid e~x \mid \sLet{x}{e}{e} \\
+&\phantom{\Coloneqq}\mid \sTrue \mid \sFalse \mid \sIf{e}{e}{e} \\
+&\phantom{\Coloneqq}\mid \sMk \mid \sGet \mid \sAnd \mid \sOr
 \end{align*}
 
-\newcommand{\lfp}{\operatorname{lfp}}
-\newcommand{\dlambda}{\mathit{\lambda}}
-\newcommand{\dBool}{\mathbb B}
-\newcommand{\dFalse}{\mathit F}
-\newcommand{\dTrue}{\mathit T}
-\newcommand{\D}[1]{\llbracket #1 \rrbracket}
-
-Let us start with a conventional denotational semantics, call-by-name style. The semantic domain is given by
+The types of the operations on $\tBool$ and $\tRBool$ are
 \begin{align*}
-D &\simeq V_\bot \\
-V &\simeq (V_\bot \to D) + \dBool
+\sMk &:: \tBool \to \tRBool \\
+\sGet &:: \tRBool \to \tBool \\
+\sAnd, \sOr &:: \tRBool \to \tRBool \to \tRBool
 \end{align*}
-where $\dBool = \{\dFalse, \dTrue\}$, discretely ordered. I write $f$ or $(\dlambda v. f(v))$ for function values in that domain, and $b$ for an arbitrary element of $\dBool$.
+and the typing relation $\Gamma \vdash e \colon \tau$ is standard.
 
+\subsection{The denotational domain}
 
-And the denotation of expressions in an environment is now, as usual
+By virtue of using a simply typed language, we can choose a suitable denotational domain for each type. This avoids having to solve recursive domain equations involving the function type (as in the untyped case), which we struggle with (see Sec. TODO).
+
+The semantic domain for a type $\tau$ is a DCPO $\tD\tau$, which is either bottom or a value $\tV\tau$:
 \begin{align*}
-\D{\cdot}_\cdot &:: \Exp \to (\Var \to V_\bot) \to D \\
+\tD\tau &= \tV\tau_\bot \\
+\tV{\tau_1 \to \tau_2} &= [\tV{\tau_1}_\bot \to_m \tD{\tau_2}] \\
+\tV{\tBool} &= \dBool \\
+\tV{\tRBool} &= \dRBool \\
+&\text{where } \dRBool = \dBool_\bot + (\dRBool_\bot \times \dRBool_\bot) + (\dRBool_\bot \times \dRBool_\bot)
+\end{align*}
+
+Some notes:
+\begin{enumerate}
+\item To stay close to lazy functional programming, every type is lifted. In particular, $\bot \sqsubset (\dlambda x.\bot)$.
+
+\item The function type contains all \emph{monotonic} functions (hence the $m$ at the arrow), and not just the \emph{continuous}, as usual. We’ll soon see why we need this.
+I write $f$ or $(\dlambda v. f(v))$ for the elements in this domain.
+
+It remains to be seen if this causes problems, and whether we can find a tighter model for the function space.
+
+\item The booleans are just $\dBool = \{\dFalse, \dTrue\}$, discretely ordered. I write $b$ for an arbitrary element of $\dBool$.
+
+\item The denotation of $\tRBool$ is $\dRBool$, the (possibly infinite) formulas  built from $\dMk(d)$, $\dAnd(d,d)$ and $\dOr(d,d)$.
+
+\item For some examples, it's useful to talk about an unary identity operation
+\[
+\sId :: \tRBool \to \tRBool
+\]
+with denotation $\dId(d)$. Think of $\sId~e = \sAnd~x~x$ resp. $\dId(d)=\dAnd(d,d)$.
+
+\end{enumerate}
+
+\subsection{The denotation of expressions}
+
+Finally we can give the denotation of (well-typed) expressions: For every typing derivation $\Gamma \vdash e \colon \tau$ and well-typed environment $\rho \in \Pi_{x \in \Var} \tD{\Gamma(x)}$ we can deifne the dentotation $\D{e}_\rho \in \tD{\tau}$. The equations for the lambda calculus fragment, the booleans, and the $\tRBool$ constructors are standard:
+\begin{align*}
 \D{x}_\rho &= \rho(x) \\
 \D{\slambda x. e}_\rho &= \dlambda v. \D{e}_{\rho \sqcup \{x \mapsto v\}} \\
 \D{e~x}_\rho &=
@@ -131,8 +184,8 @@ f(\rho(x)) &\text{if } \D{e}_\rho = \dlambda v. f(v) \\
 \bot &\text{else}
 \end{cases}\\
 \D{\sLet{x}{e_1}{e_2}}_\rho &=
-\D{e_2}_{\rho \sqcup \{x \mapsto d \}}
-\quad \text{where } d = \lfp(\dlambda v. \D{e_1}_{\rho_\sqcup\{x \mapsto v\}}) \\
+\D{e_2}_{\rho \sqcup \{x \mapsto \lfp h \}}
+\quad \text{where } h(d)= \D{e_1}_{\rho_\sqcup\{x \mapsto d\}} \\
 \D{\sTrue}_\rho &= \dTrue\\
 \D{\sFalse}_\rho &= \dFalse\\
 \D{\sIf{e_1}{e_2}{e_3}}_\rho &=
@@ -140,210 +193,433 @@ f(\rho(x)) &\text{if } \D{e}_\rho = \dlambda v. f(v) \\
 \D{e_2}_\rho &\text{if } \D{e_1}_\rho = \dTrue \\
 \D{e_3}_\rho &\text{if } \D{e_1}_\rho = \dFalse \\
 \bot &\text{else}
-\end{cases}
-\end{align*}
-
-\subsection{Adding recursively defineable booleans}
-
-Now we extend the language as per the More Fixpoints! paper. To keep things simple, we focus on \texttt{RBool} with two operations:
-\begin{align*}
-e &\Coloneqq \ldots \mid \sMk~x \mid \sGet~x \mid \sAnd~x~x \mid \sOr~x~x
-\end{align*}
-
-\subsection{Semantics: First attempt, not monotone}
-
-\newcommand{\rBool}{\mathcal B}
-\newcommand{\rTrue}{\mathcal T}
-\newcommand{\rFalse}{\mathcal F}
-
-We need to extend the semantic domain and the denotation. A naive attempt could be to simply add the two-point lattice $\rBool = \{ \rTrue, \rFalse \}$ with $\rFalse \sqsubset \rTrue$ (and operations $\wedge$ and $\vee$) to the domain, to represent \texttt{RBool} values:
-\begin{align*}
-D &\simeq V_\bot \\
-V &\simeq (V_\bot \to D) + \dBool + \rBool
-\end{align*}
-And then write the denotation of the new constructs as follows
-\begin{align*}
-\D{\sMk~x}_\rho &=
-\begin{cases}
-\rTrue &\text{if } \rho(x) = \dTrue \\
-\rFalse &\text{if } \rho(x)  = \dFalse \\
-\bot &\text{else}
 \end{cases} \\
-\D{\sGet~x}_\rho &=
-\begin{cases}
-\dTrue &\text{if } \rho(x) = \rTrue \\
-\dFalse &\text{if } \rho(x)  = \rFalse \\
-\bot &\text{else}
-\end{cases} \\
-\D{\sAnd~x_1~x_2}_\rho &=
-\begin{cases}
-\rho(x_1) \wedge \rho(x_2) &\text{if } \rho(x_1), \rho(x_2) \in \rBool \\
-\bot &\text{else}
-\end{cases} \\
-\D{\sOr~x_1~x_2}_\rho &=
-\begin{cases}
-\rho(x_1) \vee \rho(x_2) &\text{if } \rho(x_1), \rho(x_2) \in \rBool \\
-\bot &\text{else}
-\end{cases} \\
+\D{\sMk}_\rho &= \dlambda v. \dMk(v) \\
+\D{\sAnd}_\rho &= \dlambda v_1 v_2. \dAnd(v_1, v_2)\\
+\D{\sOr}_\rho &= \dlambda v_1 v_2. \dOr(v_1, v_2)
 \end{align*}
 
-Unfortunately, now the denotation of expressions is not monotonic:
-\[
-\rFalse \sqsubseteq \rTrue
-\quad\text{but}\quad
-\D{\sGet~x}_{\{x \mapsto \rFalse\}} = \dFalse
-\not\sqsubseteq
-\dTrue = \D{\sGet~x}_{\{x \mapsto \rTrue\}}
-\]
-and the whole semantics is no longer well-defined. So we need something different.
-
-\subsection{Semantics: First attempt, manifest equations}
-
-The problem is clearly with $\sGet$: This is the where something special happens, certainly in the implementation, and thus here. Operationally, this function looks at the heap graph, collects the equations there, throws them into a solver, and only returns a value once that solver is done.
-
-This can inspire us here as well: Instead of mixing solving the domain equations for the host langauge in $D$  and the object equations in $\rBool$, we can only collect the equations using $D$, and then solve them separately when $\sGet$ is called.
-
-\newcommand{\dMk}{\operatorname{Mk}}
-\newcommand{\dAnd}{\operatorname{And}}
-\newcommand{\dOr}{\operatorname{Or}}
-
-Therefore, we now treat the operations that produce \texttt{RBool} semantically just like data constructors:
-\begin{align*}
-D &\simeq V_\bot \\
-V &\simeq (V_\bot \to D) + \dBool + D + (D \times D) + (D \times D)
-\end{align*}
-where the three new forms are written $\dMk(d)$, $\dAnd(d,d)$ and $\dOr(d,d)$. All three are non-strict (although for $\dMk$ this isn't improtant).
-
-The semantics of these operations now simply uses the corresponding constructor
-\begin{align*}
-\D{\sMk~x}_\rho &= \dMk(\rho(x)) \\
-\D{\sAnd~x_1~x_2}_\rho &= \dAnd(\rho(x_1), \rho(x_2)) \\
-\D{\sOr~x_1~x_2}_\rho &= \dOr(\rho(x_1), \rho(x_2))
-\end{align*}
 Here we can see that $\sAnd$ and $\sOr$ are \emph{lazy} and thus can be used to tie the knot, as described in the paper.
 
+Because we allow monotonic (not continuous) functions in $\tD{\tau_1 \to \tau_2}$, the semantics itself is monotonic (not continuous) in the environmet $\rho$. This means the least fixed-point $\lfp h$ in the semantics for $\syntax{let}$ still exists, but may not necessarily be $\bigsqcup_{i} h^i(\bot)$.
 
-\newcommand{\dsolve}{\operatorname{\textit{solve}}}
+\newcommand{\interp}{\operatorname{\textit{interp}}}
+\newcommand{\cost}{\operatorname{\textit{cost}}}
 
-All the magic is now in the semantics for $\sGet$, which I define via a helper function
+All the magic is now in the semantics for $\sGet$, which collects the formula constructed from $\dMk$, $\dAnd$ and $\dOr$, solves it in the two-point lattice $\rBool = \{ \rTrue, \rFalse \}$ with $\rFalse \sqsubset \rTrue$ (and operations $\wedge$ and $\vee$), and returns the result as a $\dBool$.
+
+More precisely, it uses a helper function
 \[
-\dsolve :: D \to \rBool^\top
+\interp :: \dRBool_\bot \to \rBool^\top
 \]
-where $\dsolve$ is the smallest function that solves these equations:
+which is the smallest function that solves the equations
 \begin{align*}
-\dsolve(\sMk(\sTrue)) &= \rTrue \\
-\dsolve(\sMk(\sFalse)) &= \rFalse \\
-\dsolve(\sAnd(d_1,d_2)) &= \dsolve(d_1) \wedge \dsolve(d_2) &&\text{if } \dsolve(d_1),\dsolve(d_2) \ne \top \\
-\dsolve(\sOr(d_1,d_2)) &= \dsolve(d_1) \vee \dsolve(d_2) &&\text{if } \dsolve(d_1),\dsolve(d_2) \ne \top \\
-\dsolve(d) &= \top &&\text{for any other $d$}\\
+\interp(\dMk(b)) &= i(b) && \text{where }
+\begin{aligned}[t]
+i(\dTrue) &= \rTrue\\
+i(\dFalse) &= \rFalse\\
+i(\bot) &= \top
+\end{aligned}\\
+\interp(\dAnd(d_1,d_2)) &= \interp(d_1) \wedge \interp(d_2) &&\text{if } \interp(d_1),\interp(d_2) \ne \top \\
+\interp(\dOr(d_1,d_2)) &= \interp(d_1) \vee \interp(d_2) &&\text{if } \interp(d_1),\interp(d_2) \ne \top \\
+\interp(d) &= \top &&\text{for any other $d$}
 \end{align*}
-Some observations:
+Some observations about $\interp$:
 \begin{itemize}
-\item This function is \emph{not} monotonic from $D$ to $\rBool^\bot$, but it needs not to be. The definitions are monotonic in the recursive calls, so if you think of it as a infinite system of equations, indexed by the values of $D$, the definition becomes well-defined.
-\item The function only returns a non-$\top$-element if the argument consists of only the \texttt{RBool}-constructors. In particular, if anywhere in the argument there is a $\bot \in D$, this function will return $\top$.
-\item A consequence is that if $\dsolve(d) \ne \top$, then $d$ must consist only of constructors, and in particular no $\bot$ occurs anywhere therein. Such a $d$ is a \emph{maximal} element of $D$.
+\item The $\top$ value serves as an error indicator, when a the formula cannot be interpreted -- here, if any value is unknown ($\bot$); but later we will see that it can be used to model when solving the equations does not terminate.
+\item This function is \emph{not} monotonic from $\dRBool_\bot$ to $\rBool^\top$, because $i \colon \dBool_\bot \to \rBool^\top$ isn't.
+\item Its definitional equations are monotonic in the recursive calls, so if you think of it as an infinite system of equations, indexed by the elements of $\dRBool$, the definition becomes well-defined even for infinite formulas. For example
+\[
+\interp(\mu d. \dAnd(d,d)) = \rFalse.
+\]
+\item We can only have $\interp(d) \ne \top$ if $d$ consist only of constructors, and in particular no $\bot$ occurs anywhere therein. Such a $d$ is a \emph{maximal} element of $\dRBool$; there exists no strictly larger element.
 \end{itemize}
 
-With that we define
+With that we can define
 \[
-\D{\sGet~x}_\rho =
-\begin{cases}
-\dFalse &\text{if } \dsolve(\rho(x)) = \rFalse \\
-\dTrue &\text{if } \dsolve(\rho(x)) = \rTrue \\
-\bot  &\text{if } \dsolve(\rho(x)) = \top
-\end{cases}
+\D{\sGet}_\rho = \dlambda v. e(\interp(v))
+\quad\text{where }
+\begin{aligned}[t]
+e(\rFalse) &= \dFalse\\
+e(\rTrue) &= \dTrue\\
+e(\top)  &= \bot
+\end{aligned}
 \]
 
 More observations:
 \begin{itemize}
-\item Again, the mapping from $\mathcal B^T \to D$ therein is not monotonic, but that is not a problem.
+\item Again, the mapping $e : \colon \rBool^\top \to \dBool_\bot$ therein is not monotonic.
+\item But -- crucially -- the the composition of $e$ and $\interp$, and thus the denotation of $\sGet$, is monotonic:
 
-But the right-hand-side better be monotonic as a function of $\rho(x) \in D$, but that is the case:
 Assume
-$\rho_1(x) \sqsubset \rho_2(x)$.
-So $\rho_1(x)$ is not a maximal element, therefore $\dsolve(\rho_1(x)) = \top$, hence $\D{\sGet~x}_{\rho_1} = \bot$, which suffices for
-$\D{\sGet~x}_{\rho_1} \sqsubseteq \D{\sGet~x}_{\rho_2}$.
+$v_1 \sqsubset v_2$.
+So $v_1$ is not a maximal element, therefore $\interp(v_1) = \top$, hence $\D{\sGet}~v_1 = \bot$, which suffices for
+$\D{\sGet} ~ v_1  \sqsubseteq \D{\sGet} ~ v_2$.
 
-\item The function is not continuous: Consider the sequence $d_i$ defined as
+\item The function is not continuous: Consider the sequence $d_i = \dId^i(\bot) \in \dRBool$. It forms a chain
 \[
 \bot
-\sqsubset \dAnd(\dMk(\dTrue), \bot)
-\sqsubset \dAnd(\dMk(\dTrue), \dAnd(\dMk(\dTrue), \bot))
+\sqsubset \dId(\bot)
+\sqsubset \dId(\dId(\bot))
 \sqsubset \cdots
 \]
-with limit $d_\omega = (\mu d, \dAnd(\dMk(\dTrue), d))$. We have
+with limit $d_\omega = (\mu d. \dId(d))$. We have
 \[
-\D{\sGet~x}_{x \mapsto d_i} = \bot
+\D{\sGet~x}~ d_i = \bot
 \]
 for all $i$, but
 \[
-\D{\sGet~x}_{x \mapsto d_\omega} = \dTrue.
+\D{\sGet~x}~ d_\omega = \dFalse.
 \]
+because $\interp(d_\omega) = \rFalse$.
 
-But we still get a well-defined denotational semantics, because $D$ is a chain-complete partial order, on such a partial order, every monotone function has a least fixed point (which can be found using transfinite iteration).
+We still get a well-defined semantics $\D\cdot$; see the comment above about the existence of the least fixed point in the $\syntax{let}$ semantics.
 
-\textbf{Open question:} Allowing non-continuous functions here means we have to re-interpret the domain equations above so that $\to$ denotes the space of monotonic functions. I do not know if we can even solve the domain equation then.
-
-\item This semantics is more defined that what we can implement, because $\dsolve$ works even in cases where we did not tie the knot. So we not only get
+\item This semantics is more defined that what we can implement, because $\interp$ works even in cases where we did not tie the knot. So we not only get
 \[
-\D{\sLet{x}{\sAnd~x~x}{x}} = \dFalse
+\D{\sLet{x}{\sId~x}{\sGet~x}} = \dFalse
 \]
 as we expect, but also
 \[
-\D{\sLet{x}{(\slambda y. \sAnd~(x~y) ~(x~y))}{x~y}} = \dFalse
+\D{\sLet{x}{(\slambda y. \sId~(x~y))}{\sGet~(x~y)}} = \dFalse
 \]
-which we not what we actually get in the implementation.
+which is not what we see in the implementation.
 
-The problem is that our semantics is call-by-name, not call-by-need, so we cannot really distinguish the two.
+The problem is that our semantics is call-by-name, not call-by-need, so we cannot distinguish the productive tied knot from the other expression.
 
-This can be fixed by elaborating the semantics along the lines of “Call-by-Need Is Clairvoyant Call-by-Value” and forcing  $\D{\sGet~x}_\rho = \bot$ if $\rho(x)$ isn't knot-tied.
+This can be fixed by elaborating the semantics along the lines of “Call-by-Need Is Clairvoyant Call-by-Value” and forcing  $\D{\sGet}~d = \bot$ if $d$ isn't knot-tied.
 (\emph{I have TODO that in another section below.})
 
-It seems that that semantics will simply be less defined than this one, but agree when they are both not bottom, so this is already useful for fast-and-lose reasoning.
+It seems that that semantics will simply be less defined than this one, but agree when they are both not bottom, so the call-by-name semantics may already useful for fast-and-lose reasoning.
 
 \end{itemize}
 
 \subsection{Equational reasoning}
 
-\subsubsection{Some work}
+Now that we have defined the semantics, can we use it?
 
-Is this semantics useful? It seems we can do some amount of equational reasoning. Usual equations like
+\subsubsection{Some things work}
+
+It seems we can do some amount of equational reasoning. Equations related to the lambda calculus like
 \[
 \D{(\slambda x. e[x])~y} = \D{e[y]}
 \]
-hold as usual. But we can prove program equations like
+hold as usual.
+
+Moreover, we can derive program equations like
 \[
 \D{\sGet~(\sAnd~x~y)} = \D{(\sGet~x) \syntax{\&\&!} (\sGet~y)}
 \]
-where $\syntax{\&\&!}$ a strict conjunction operator and I’m liberal with the ANF. (\emph{TODO: Spell out the proof.})
+where $\syntax{\&\&!}$ a strict conjunction operator on $\dBool_\bot$:
+
+If $\interp(\rho(x)) = \top$ or $\interp(\rho(y)) = \top$, then both sides are $\bot$. Else we can can calculate (using $\wedge$ both on $\rBool$ and $\dBool$)
+\begin{align*}
+\D{\sGet~(\sAnd~x~y)}_\rho 
+&= \D{\sGet}~\D{\sAnd~x~y}_\rho  \\
+&= e(\interp(\sAnd(\rho(x), \rho(y)))) \\
+&= e(\interp(\rho(x)) \wedge \interp(\rho(y))) \\
+&= e(\interp(\rho(x))) \wedge e(\interp(\rho(y))) \\
+&= \D{\sGet}~\rho(x) \wedge \D{\sGet}~\rho(y) \\
+&= \D{\sGet~x}_\rho \wedge \D{\sGet~y}_\rho \\
+&= \D{(\sGet~x)\syntax{\&\&!} (\sGet~y)}_\rho
+\end{align*}
+Since all moving parts are defined as fixed-points of one sort or another, equational reasoning works very well.
 
 \subsubsection{Some things do not work}
 
-Unfortunately, desirable identities like the following do not seem to hold
+Unfortunately, dome desirable identities like the following do not seem to hold
 \begin{align*}
 \D{\sAnd~x~y} &= \D{\sAnd~y~x} \\
-\D{\sAnd~x~x} &= \D{\sOr~x~x}
+\D{\sOr~x~x} &= \D{\sId~x}
 \end{align*}
-because the denotation $D$ captures the full boolean formula, and not some denotation thereof, only to be interpreted by $\dsolve$.
+because the denotation $D$ captures the full boolean formula, and not some denotation thereof, only to be interpreted by $\interp$.
 
-Can this be solved? Can we somehow inline the effect of $\dsolve$ into the denotational of $\sAnd$, without breaking the well-definedness of the semantics?
+Can this be solved? Can we somehow inline the effect of $\interp$ into the denotational of $\sAnd$, without breaking the well-definedness of the semantics?
 
 \subsection{Other domains}
 
-The above isn’t very specific to the boolean domain $\rBool$, and should work without much changes for other domains $A$ such as $\mathcal P(\mathbb N)$ or $\mathcal P_{\text{fin}}(\mathbb N)$: All operations are modelled as constructors in $D$, and then $\dsolve$ works on $A^\top$.
+The above isn’t very specific to the boolean domain $\rBool$, and should work without much changes for other domains $A$ such as $\mathcal P(\mathbb N)$ or $\mathcal P_{\text{fin}}(\mathbb N)$: All operations are modelled as constructors in $D$, and then $\interp$ interprets these formulas in $A^\top$.
 
-This even does the right thing for non-complete domains such as $\mathcal P_{\text{fin}}(\mathbb N)$: Buy adjoining the $\top$, and letting all operations map $\top$ to $\top$, a program like
+This even does the right thing for non-complete domains such as $\mathcal P_{\text{fin}}(\mathbb N)$: By adjoining the $\top$, and letting all operations map $\top$ to $\top$, a program like
 \[
 \texttt{let x = RS.insert 0 (RS.map (+1) x) in x}
 \]
-will be solved as $\top$ by $\dsolve$ and thus end up being $\bot$, as it should.
+will be solved as $\top$ by $\interp$ and thus end up being $\bot$, as it should.
 
-If we want to model $\texttt{RMap a b}$, where values from $D$ are stored, but not looked at by $\dsolve$, the argument for why $\D{\sGet~x}$ is continuous is more involved, as we cannot simply argue via maximality, but may need some kind of parametricity argument.
+If we want to model $\texttt{RMap a b}$, where values from $D$ are stored, but not looked at by $\interp$, the argument for why $\D{\sGet}$ is continuous is more involved, as we cannot simply argue via maximality, but may need some kind of parametricity argument.
 
-\section{Embedding a fixed-point solver, call by need}
+\subsection{Why not\ldots}
 
-As mentioned above, the semantics is too liberal: The real \texttt{get} only works when on a knot-tied formula, but the above semantics can solve infinite sets of equations.
+Let's briefly look at other attempts and variants, and where they failed.
 
-To fix this, we have to use \texttt{rseq} in \texttt{get}.
+\subsubsection{A simpler domain}
+
+One might expect to be able to simply use the two-point lattice $\rBool$ directly as the domain for $\tRBool$, instead of keeping the formulas $\dRBool$ around until we $\sGet$ them:
+\begin{align*}
+\tD\tRBool &= {\tV\tRBool}_\bot\\
+\tV\tRBool &= \rBool\\
+\D{\sMk} &= \lambda v. \begin{cases}
+\rFalse & \text{if } v = \dFalse \\
+\rTrue & \text{if } v = \dTrue \\
+\bot  & \text{if } v = \bot
+\end{cases}\\
+\D{\sGet} &= \lambda v. \begin{cases}
+\dFalse & \text{if } v = \rFalse \\
+\dTrue & \text{if } v = \rTrue \\
+\bot  & \text{if } v = \bot
+\end{cases}\\
+\D{\sAnd} &= \lambda v_1 v_2. \begin{cases}
+v_1 \wedge v_2 & \text{if } v_1, v_2 \ne \bot \\
+\bot & \text{else}
+\end{cases}\\
+\end{align*}
+
+However, now the denotation of expressions is not monotonic,
+\[
+\rFalse \sqsubseteq \rTrue
+\quad\text{but}\quad
+\D{\sGet~x}_{\{x \mapsto \rFalse\}} = \dFalse
+\not\sqsubseteq
+\dTrue = \D{\sGet~x}_{\{x \mapsto \rTrue\}},
+\]
+and the whole semantics is no longer well-defined -- hence the need for something more elaborate.
+
+\subsubsection{An untyped domain}
+
+Often, denotational semantics are presented in an untyped way, with a single Domain $D$ for all expressions, and operations failing (returning $\bot$) when used in an ill-typed way.
+
+To do so in our case, we would start describe the domain $D$ via a recursive domain equations, maybe like this:
+\[
+D = ([D \to_m D] + \dBool + \dRBool)_\bot
+\]
+where $\dRBool = D + (D \times D) + (D \times D)$.
+
+We'd now have to solve that domain equation, and prove that a CPO satisfying that equation actually exists. For the usual constructions, including the space of \emph{continuous} functions, this is a well-known theorem. Our semantics, for better or worse, has to allow certain non-continuous functions to model the semantics for $\sGet$. And once the domain equation recurses through $\to_m$, it is no longer generally the case that the domain equation has a solution.
+
+We side-step the issue by focusing on the simply typed fragment, where we can assemble the semantic domain in a type-syntax driven way, without the need to recurse through $\to_m$.
+
+\section{Tying the knot with lazy evaluation}
+
+As mentioned above, our denotational semantics is too permissive: It assignes non-bottom meaning to programs we do not expect to run. This is because we only expect to handle those (infinite) formulas that arise from finite graphs in the heap, i.e.\ a tied knot, when evaluated lazily, but not others.
+
+A denotational semantics that captures needs to be able to observe sharing; it must be a call-by-need semantics. How abstract can we be, while still capturing that difference? Can we still avoid talking about heaps and graphs? It seems we can, building on “Call-by-Need Is Clairvoyant Call-by-Value” by Hacket and Hutton.
+
+Their goal was to find a semantics (operational and denotational) that captures the \emph{cost} of evaluation in lazy evaluation, for example to prove improvement of program transformations. This is a bit more detail than we need, but, as a side-effect so to say, it allows us to recognize tied knots.
+
+
+\subsection{Cost counting domains}
+
+\newcommand{\omegaop}{\omega^{\text{op}}}
+\newcommand{\bump}{\blacktriangleright}
+
+To apply their approach, we have to replace $D_\bot$ in our semantics domains with the more expressive
+\[
+D_c \coloneqq (\omegaop \times D)_\bot
+\]
+where $\omega^{\text{op}}$ is the set of natural numbers in reverse order ($\cdots \sqsubset 2 \sqsubset 1 \sqsubset 0$). The intuition is that such a value can either denote something non-terminating ($\bot$) or a value ($(n,v)$) that remembers that it takes $n$ steps to obtain that value.
+The reverse ordering on the costs means
+\[
+\bot \sqsubset \cdots \sqsubset (2,v) \sqsubset (1,v) \sqsubset (0,v)
+\]
+and the usual “more defined” becomes “more defined or cheaper to calculate”, which matches the intuition that $\bot$ takes an infinite number of steps.
+
+According to an errata\footnote{\url{https://www.cs.nott.ac.uk//~pszjlh/cbncbv_erratum.pdf}}, the following order should be used on $\omegaop\times D$:
+\[
+(k,f) \sqsubseteq (k', f') \iff
+k \ge k' \wedge \forall v, k \bump f(v) \sqsubseteq k' \bump f'(v)
+\]
+which supposedly leads to
+\[
+(k_1,f_1) \sqcup (k_2, f_2) =
+(k', \slambda v. (k_1 - k') \bump f_1(v) \sqcup (k_2-k') \bump f_2(v))
+\text{ where } k' = \min(k, k')
+\]
+We need to extend this to data types, it seems. I am not yet sure what happens for binary ones, but for unary constructors like $\sId$ I think this means we get
+\[
+(k_1,\sId(d_1)) \sqcup (k_2, \sId(d_2)) =
+(k', \sId((k_1-k') \bump d_1 \sqcup (k_2 - k') \bump d_2))
+\text{ where } k' = \min(k, k')
+\]
+
+The operation $n \bump \cdot$ adds a cost of $n$ steps; we liberally use this operation at type $D_\bot \to D_c$ to add a cost annotation,
+\[
+n \bump d = (n, d),
+\]
+and at type  $D_c \to D_c$ to increase the cost,
+\[
+n \bump (m,d) = (n + m, d).
+\]
+A value $d \in D$ can be considered a value of $D_c$ as $(0, d)$. Thus in all cases, we have
+\begin{align*}
+n \bump \bot &= \bot\\
+0 \bump d &= d.
+\end{align*}
+Furthermore, for $n \ne 0$, $n \bump d = d$ holds \emph{only} for $d = \bot$.
+The operation $\pi_2(\bot) = \bot$,  $\pi_2((c,v)) = v$ extracts the underlying value, throwing away the cost annotation.
+
+
+\subsection{Semantics of types}
+
+Our new semantic domains now become
+\begin{align*}
+\tD\tau &= (\omegaop\times\tV\tau)_c\\
+\tV{\tau_1 \to \tau_2} &= [\tV{\tau_1}_\bot \to_m \tD{\tau_2}] \\
+\tV{\tBool} &= \dBool \\
+\tV{\tRBool} &= \dRBool \\
+&\text{where } \dRBool = \dBool_c + (\dRBool_c \times \dRBool_c) + (\dRBool_c \times \dRBool_c)
+\end{align*}
+
+Note that the domain for function types is $[\tV{\tau_1}_\bot \to_m \tD{\tau_2}]$, so function \emph{arguments} do not carry a cost; they are either bottom or already a value.
+
+\subsection{Semantics of expressions}
+
+We now have to add cost counting to our semantics function. The environment does not include costs
+$\rho \in \Pi_{x \in \Var} \tV{\Gamma(x)}_\bot$; the cost of a lazy binding, if it is going to be used, is accounted for at binding time.
+
+But how is that possible, when under the call-by-need  strategy a lazy binding becomes an unevaluated thunk first, and the first evaluation statefully updates it? This is solved by the titular clairvoyance: The denotation of $\texttt{let x = e1 in e2}$ considers the semantics of both cases; one where \texttt{e1} is evaluated (and immediatelly accounted for), and one where it is simply dropped. Taking the better of the two denotations ($\sqcup$) elegantly does the right thing.
+
+It will simplify our live considerably to only allow expressions in A-normal form (ANF), and expect the argument in an function application to always be a variable. This way, \emph{only} the \texttt{let} construct deals with bindings:
+
+\begin{align*}
+\D{x}_\rho &= 1 \bump \rho(x) \\
+\D{\slambda x. e}_\rho &= \dlambda v. \D{e}_{\rho \sqcup \{x \mapsto v\}} \\
+\D{e~x}_\rho &=
+\begin{cases}
+(1+n) \bump f(\rho(x)) &\text{if } \D{e}_\rho = n \bump (\dlambda v. f(v)) \\
+\bot &\text{else}
+\end{cases}\\
+\D{\sLet{x}{e_1}{e_2}}_\rho &=
+(1 \bump \D{e_2}_{\rho \sqcup \{x \mapsto \bot \}})
+\sqcup\strut\\
+&\quad
+\begin{cases}
+(1+n) \bump \D{e_2}_{\rho \sqcup \{x \mapsto v \}}
+&\text{if } \lfp h = (n,v)\\
+\bot &\text{else}
+\end{cases}\\
+& \quad \text{where }
+h(d) = \D{e_1}_{\rho_\sqcup\{x \mapsto \pi_2(d)\}}\\
+\D{\sTrue}_\rho &= \dTrue\\
+\D{\sFalse}_\rho &= \dFalse\\
+\D{\sIf{e_1}{e_2}{e_3}}_\rho &=
+\begin{cases}
+(1+n) \bump \D{e_2}_\rho &\text{if } \D{e_1}_\rho = n \bump \dTrue \\
+(1+n) \bump \D{e_3}_\rho &\text{if } \D{e_1}_\rho = n \bump \dFalse \\
+\bot &\text{else}
+\end{cases} \\
+\D{\sMk}_\rho &= \dlambda v. \dMk(v) \\
+\D{\sAnd}_\rho &= \dlambda v_1 v_2. \dAnd(v_1, v_2)\\
+\D{\sOr}_\rho &= \dlambda v_1 v_2. \dOr(v_1, v_2)
+\end{align*}
+
+We see that value forms do not incurs a cost, while all other constructs bump the cost by one. Furthermore, the costs of (strictly evaluated) subexpressions, like function left-hand-sides or scrutinees, are propagated.
+
+The most interesting equation is the one for $\syntax{let}$: the denotation is the better ($\sqcup$) of two possible worlds: One where $x$ is simply unused, so no cost is incurred and its value is $\bot$, and one where $x$ will (eventually) be evaluated. In that case, the evaluation of $e_1$ better terminate. 
+We are finding a least fixed point, as the meaning of $e_2$ may depend on the value of $x$. We even allow $e_2$ to access its own value without additional cost ($\pi_2(d)$) -- this is the essence of sharing. But it must be the case that $e_2$ is lazy in $x$ for this fixedpoint to reach a non-bottom result: If $h(\bot) = \D{e_1}_{\rho_\sqcup\{x \mapsto \bot\}} = \bot$, then $\lfp h = \bot$.
+
+In the examples below we do not always want to write functions in ANF. If we understand $e_1~e_2$ with non-trivial argument as a short hand for $\sLet{x}{e_2}{e_1~x}$ with fresh $x$, we find
+\begin{align*}
+\D{e_1~e_2}_\rho &=
+\D{\sLet{x}{e_2}{e_1}}_\rho\\
+&= (1 \bump \D{e_1~x}_{\rho\sqcup \{x \mapsto \bot\}})
+\sqcup
+\begin{cases}
+(1 + n_2) \bump \D{e_1~x}_{\rho\sqcup\{x\mapsto v\}}  &\text{if } \D{e_1}_\rho = (n_2,v)\\
+\bot &\text{else}
+\end{cases}\\
+&= (2 + n_1 \bump f(\bot))
+\sqcup
+\begin{cases}
+(2 + n_1 + n_2) \bump f(v) &\text{if } \D{e_1}_\rho = (n_2,v)\\
+\bot &\text{else}
+\end{cases}\\
+&= 2 + n_1 \bump
+\begin{cases}
+f(\bot) \sqcup n_2 \bump f(v) &\text{if } \D{e_1}_\rho = (n_2,v)\\
+f(\bot) &\text{else}
+\end{cases}\\
+&\quad \text{where } \D{e_1}_\rho = n_1 \bump (\dlambda v. f(v))
+\end{align*}
+
+\subsection{Recognizing cyclic data structures}
+
+With this semantics, we can now distinguish knot-tied, cyclic data structure from other kinds of recursion. For example, we can distinguish
+$\D{\sLet{x}{\sId~x}{x}}$ from $\D{\sLet{x}{(\slambda y. \sId~(x~y))}{x~y}}$:
+
+In the first case, we have
+\[
+h(d)
+= \D{\sId~x}_{\rho\sqcup{x \mapsto \pi_2(d)}}
+= 2\bump \dId(\pi_2(d))
+\]
+so iterating $h$ yields
+\[
+\bot \sqsubset 1 \bump \dId(\bot) \sqsubset 1 \bump \dId(0\bump \dId(\bot)) \sqsubset \cdot
+\]
+with limit $1 \bump \dId(\mu d, 0 \bump \dId(d))$, so alltogether
+\[
+\D{\sLet{x}{\sId~x}{x}} = 3 \bump \dId(\mu d. 0 \bump \dId(d)).
+\]
+We see that the knot-tied data structure, after some finite outer cost, becomes an infinite tree with all costs 0. In other words: It takes a finite amount of steps to fully evaluate the (infinite) formula.
+
+For the second expression, where no knot is tied, we have
+\begin{align*}
+h(d)
+&= \D{\slambda y. \sId~(x~y)}_{\rho\sqcup\{x \mapsto \pi_2(d)\}} \\
+&= \slambda v. 1\bump \D{\sId~(x~y)}_{\rho\sqcup\{x \mapsto \pi_2(d), y\mapsto v\}} \\
+&= \slambda v. 1\bump \D{\sId~(x~y)}_{\rho\sqcup\{x \mapsto \pi_2(d), y\mapsto v\}} \\
+&= \slambda v. 3\bump \begin{cases}
+\dId(\bot) \sqcup n_2 \bump \dId(v') & \text{if } \D{x~y}_{\rho\sqcup\{x \mapsto \pi_2(d), y\mapsto v\}} = (n_2,v')\\
+\dId(\bot) & \text{else}
+\end{cases}\\
+&= \slambda v. 3\bump \dId\left(\begin{cases}
+(1 + n_2)\bump v' & \text{if }\pi_2(d) = f \text{ and } f(v) = (n_2,v')\\
+\bot & \text{else}
+\end{cases}\right)
+\end{align*}
+so
+\begin{align*}
+h(\bot) &= \slambda v. 3\bump \dId(\bot) \\
+h(h(\bot)) &= \slambda v. 3\bump (\dId(4 \bump \dId(\bot))) \\
+h(h(h(\bot))) &= \slambda v. 3\bump (\dId(4 \bump \dId(4 \bump \dId(\bot)))) \\
+\lfp h &= \slambda v. 3\bump (\dId(\mu d. 4 \bump \dId(d)))
+\end{align*}
+and we see that evaluating the whole forumula is \emph{not} possible with finite cost.
+
+\subsection{An implementable get}
+
+This leads us to the right intution for the denotation of $\sGet$: It can only return a non-bottom result if fully evaluating the formula is possible with a finite cost. Therefore, we make it add up all the costs involved. The function $\cost$ is the \emph{smallest} function satisfying 
+\begin{align*}
+\cost &:: \dRBool_c \to \omega^\top \\
+\cost(n \bump \dMk(d)) &= n \\
+\cost(n \bump \dAnd(d_1,d_2)) &= n + \cost(d_1) + \cost(d_2) \\
+\cost(n \bump \dOr(d_1,d_2)) &= n + \cost(d_1) + \cost(d_2)\\
+\cost(\bot) &= \top
+\end{align*}
+We have $\cost d \sqsubset \top$ only if $d$ is a (possibly infinite) formula with no $\bot$ anywhere and finite cost annotations. In particular
+\[
+\cost(\mu v, 0 \bump \dId(v)) = 0
+\quad\text{and}\quad
+\cost(\mu v, 1 \bump \dId(v)) = \bot.
+\]
+
+And finally the $\sGet$ operation now report this cost and, crucially, return $\bot$ if the cost is not finite:
+\[
+\D{\sGet}_\rho =\dlambda v.
+\begin{cases}
+n \bump e(\interp(v)) &\text{if } \cost(v) = n\\
+\bot &\text{if } \cost(v) = \top
+\end{cases}
+\]
+Here, $\interp$ is like before, simply ignoring the cost annotations.
+
+Is this still monotonic? Like before, the result non-bottom only if the argument is finite, free of bottoms and with finite total costs. A larger argument can thus only differ in the cost annotations,  and have \emph{smaller} numbers, which means the result of $\sGet$ will have a smaller cost number, which means it is larger, and all is well.
+
+
+
+% see \url{https://discourse.haskell.org/t/icfp-pearl-on-rec-def/6626/14?u=nomeata}.
+
+
+
 
 \end{document}
