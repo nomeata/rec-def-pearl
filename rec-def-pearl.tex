@@ -364,10 +364,6 @@ The main contributions of this paper are:
 \end{itemize}
 \fi
 
-\begin{acks}
-This paper would be worse without the constructive feedback from Sebastian Graf, Claudio Russo, Andreas Lochbihler, Peter Thiemann as well as the anonymous reviewers. We also thank Yihong Zhang and Sebastian Graf for the code snippets in the related work section.
-\end{acks}
-
 \section{Exploration}\label{sec:exploration}
 
 In the introduction we have used a data type |RSet| with an API that resembles that of the |Set| data structure in Haskell's |Data.Set| library. Let us explore this data structure some more from the user's point of view, to get a better understanding of how it is different from the ordinary |Set|, and to whet the appetite for the look at its implementation in \cref{sec:impl}.
@@ -972,8 +968,9 @@ We saw that we can extend Haskell with the ability to solve recursive equations 
 
 Of course there is more to be done. On the practical side there are more data types and operations to be included in the library (natural numbers in various ordering, maps). On the theoretical side, a more rigorous, formal approach to the question of whether this is actually safe and pure is worth pursuing, as is finding a denotational description of what the library does.
 
-\bibliographystyle{ACM-Reference-Format}
-\bibliography{bib}
+\begin{acks}
+This paper would be worse without the constructive feedback from Sebastian Graf, Claudio Russo, Andreas Lochbihler, Peter Thiemann as well as the anonymous reviewers. We also thank Yihong Zhang and Sebastian Graf for the code snippets in the related work section.
+\end{acks}
 
 \clearpage
 
@@ -1152,5 +1149,9 @@ We'll leave this question hanging, hoping it can tempt someone to give a satisfy
 Longley considers a term to be functional if it denotes an element in the mathematical denotation of its type. At function type, this means they are extensional and that they are described by a mathematical function. We struggle applying this criterion directly, since we have not yet managed to find a denotational semantics for Haskell extended with our library. Unlike usual call-by-name semantics for pure functional programming languages, it must be be able to tell knot-tying recursion apart from unrestricted recursion. It remains to be seen if we can find a suitable denotational semantics.
 
 \fi
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{bib}
+
 
 \end{document}
