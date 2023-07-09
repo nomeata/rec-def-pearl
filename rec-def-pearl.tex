@@ -236,7 +236,6 @@ It does not have to be that way: We built variants of common pure data structure
 Haskell is a pure and lazy programming language, and this laziness allows us to express some algorithms very elegantly, by recursively referring to currently calculated values.
 A typical and famous example is the following definition of the Fibonacci numbers as an infinite stream:
 \begin{code}
-fibs :: [Integer]
 fibs = 0 : 1 : zipWith (+) fibs (tail fibs)
 \end{code}
 This is often called “knot-tying”, because a value (here |fibs|) has a definition involving itself.
@@ -254,9 +253,10 @@ type Graph = M.Map Int [Int]
 The reflexive transitive closure can be very elegantly expressed by knot-tying a map from vertices to their set of reachable vertices:
 \begin{code}
 rTrans1 :: Graph -> Graph
-rTrans1 g = M.map S.toList reaches where
-  reaches :: M.Map Int (S.Set Int)
-  reaches = M.mapWithKey (\v vs -> S.insert v (S.unions [ reaches M.! v' | v' <- vs ])) g
+rTrans1 g = M.map S.toList reaches
+  where
+    reaches :: M.Map Int (S.Set Int)
+    reaches = M.mapWithKey (\v vs -> S.insert v (S.unions [ reaches M.! v' | v' <- vs ])) g
 \end{code}
 This code is remarkably close to the prosaic specification “the reachable vertices from a vertex |v| are |v| itself, plus all the vertices reachable from any of its successors |vs|”; hence we can consider this program to be \emph{declarative}.
 
@@ -323,9 +323,10 @@ We find the two operations used by |rTrans1|, with type signatures mirroring tho
 We can use this data structure without changing the structure of our code; we just swap out the operations (imported |qualified as RS|) and convert back to conventional sets in the end:
 \begin{code}
 rTrans2 :: Graph -> Graph
-rTrans2 g = M.map (S.toList . RS.get) reaches where
-  reaches :: M.Map Int (RS.RSet Int)
-  reaches = M.mapWithKey (\v vs -> RS.insert v (RS.unions [ reaches M.! v' | v' <- vs ])) g
+rTrans2 g = M.map (S.toList . RS.get) reaches
+  where
+    reaches :: M.Map Int (RS.RSet Int)
+    reaches = M.mapWithKey (\v vs -> RS.insert v (RS.unions [ reaches M.! v' | v' <- vs ])) g
 \end{code}
 
 And indeed, this \emph{can} handle cyclic graphs, and get the correct result:
