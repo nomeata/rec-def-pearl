@@ -1,5 +1,14 @@
 \PassOptionsToPackage{dvipsnames}{xcolor}
+
+
+\newif\ifpreprint
+\preprintfalse
+
+\ifpreprint
 \documentclass[manuscript,screen,acmsmall,nonacm]{acmart}
+\else
+\documentclass[screen,acmsmall]{acmart}
+\fi
 
 \newif\ifpure
 \purefalse
@@ -167,18 +176,15 @@
 \newenvironment{itquote}{\begin{quote}\itshape}{\end{quote}}
 
 \setcopyright{rightsretained}
-\copyrightyear{2023}
-\acmYear{2023}
-\acmDOI{XXXXXXX.XXXXXXX}
-
-
-\acmConference[ICFP'23]{ICFP}{September 04--09,2023}{Seattle, WA}
+\acmJournal{PACMPL}
+\acmYear{2023} \acmVolume{7} \acmNumber{ICFP} \acmArticle{211} \acmMonth{8} \acmPrice{}\acmDOI{10.1145/3607853}
 
 \citestyle{acmauthoryear}
 
 \begin{document}
 
-\title{Functional Pearl: More fixpoints!}
+\title{More fixpoints!}
+\subtitle{Functional Pearl}
 
 \author{Joachim Breitner}
 \email{mail@@joachim-breitner.de}
@@ -187,7 +193,7 @@
    \institution{unaffiliated}
 %  \institution{Institute for Clarity in Documentation}
 %  \streetaddress{P.O. Box 1212}
-%  \city{Dublin}
+  \city{Freiburg}
 %  \state{Ohio}
   \country{Germany}
 %  \postcode{43017-6221}
@@ -199,7 +205,9 @@ Haskell’s laziness allows the programmer to solve some problems naturally and 
 
 It does not have to be that way: We built variants of common pure data structures (Booleans, sets) where recursive definitions are productive. Internally, the infamous |unsafePerformIO| is at work, but the user only sees a beautiful and pure API, and their pretty recursive idioms -- magically -- work again.
 
+\ifpreprint
 \emph{This is a preprint of a paper to appear at ICFP'23, version \today.}
+\fi
 \end{abstract}
 
 \begin{CCSXML}
