@@ -234,7 +234,9 @@ It does not have to be that way: We built variants of common pure data structure
 
 \section{Introduction}
 
-Haskell is a pure and lazy programming language, and this laziness allows us to express some algorithms very elegantly, by recursively referring to currently calculated values. A typical and famous example is the following definition of the Fibonacci numbers as an infinite stream:
+Haskell is a pure and lazy programming language, and this laziness allows us to express some algorithms very elegantly, by recursively referring to currently calculated values.
+
+A typical and famous example is the following definition of the Fibonacci numbers as an infinite stream:
 \begin{code}
 fibs :: [Integer]
 fibs = 0 : 1 : zipWith (+) fibs (tail fibs)
@@ -243,12 +245,16 @@ This is often called “knot-tying”, because a value (here |fibs|) has a defin
 
 \subsection{Tying the knot with graphs}
 
-A maybe more practical example is the following calculation of the reflexive transitive closure of a graph, i.e.\ for each vertex the set of vertices reachable from it. Let us represent a graph as a map from vertices (of type |Int|) to lists of adjacent vertices, which we assume to be in the domain of the map (This keeps the examples concise, as then the lookup operator |M.!| won't fail):
+A maybe more practical example is the following calculation of the reflexive transitive closure of a graph, i.e.\ for each vertex the set of vertices reachable from it.
+
+Let us represent a graph as a map from vertices (of type |Int|) to lists of adjacent vertices, which we assume to be in the domain of the map (This keeps the examples concise, as then the lookup operator |M.!| won't fail):
 \begin{code}
 import qualified Data.Map as M
 import qualified Data.Set as S
 type Graph = M.Map Int [Int]
 \end{code}
+
+\goodbreak
 
 The reflexive transitive closure can be very elegantly expressed by knot-tying a map from vertices to their set of reachable vertices:
 \begin{code}
