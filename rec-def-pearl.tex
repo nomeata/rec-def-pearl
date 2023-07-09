@@ -243,7 +243,7 @@ fibs = 0 : 1 : zipWith (+) fibs (tail fibs)
 \end{code}
 This is often called “knot-tying”, because a value (here |fibs|) has a definition involving itself.
 
-\subsection{Tying the knot with graphs}
+\subsection{Tying the Knot with Graphs}
 
 A maybe more practical example is the following calculation of the reflexive transitive closure of a graph, i.e.\ for each vertex the set of vertices reachable from it.
 
@@ -268,7 +268,7 @@ This code is remarkably close to the prosaic specification “the reachable vert
 
 Note how the definition of |reaches| refers to itself -- we are “tying a knot”.
 
-\subsection{It works, until it doesn't}
+\subsection{It Works, Until It Doesn't}
 
 \begin{figure}
 \centering
@@ -316,7 +316,7 @@ This is quite disappointing! In order to handle cyclic graphs as input as well, 
 But it seems it should work: The declarative specification, from which we have derived |rTrans1|, holds for cyclic graphs as well, so it does not seem too unreasonable to expect the above code to handle cyclic graphs as well. Where does it go wrong? The way we use the lazy map data structure is fine; it helps us to express the set of reachable vertices by way of other such sets.
 The problem is that the set data structure, with its operations |insert| and |union|, is not lazy enough: |union| wants to know the value of its arguments before it can produce something useful, and thus cannot be used in a recursive, knot-tying way.
 
-\subsection{We need better sets!}
+\subsection{We Need Better Sets!}
 
 In this paper we present a data structure for sets, called |RSet|, where such recursive expressions do work! Its API is almost the same as that of |Data.Set|, Haskell's standard library for finite sets. In particular, it also consists of plain \emph{pure} functions -- no monads necessary. The fragment of the API relevant for our example is:
 \begin{code}
@@ -373,7 +373,7 @@ This paper would be worse without the constructive feedback from Sebastian Graf,
 In the introduction we have used a data type |RSet| with an API that resembles that of the |Set| data structure in Haskell's |Data.Set| library. Let us explore this data structure some more from the user's point of view, to get a better understanding of how it is different from the ordinary |Set|, and to whet the appetite for the look at its implementation in \cref{sec:impl}.
 \Cref{fig:api} gives a comprehensive overview of the API.
 
-\subsection{Just an isomorphic copy?}
+\subsection{Just an Isomorphic Copy?}
 
 \afterpage{\clearpage}
 \begin{figure}[p]
@@ -488,7 +488,7 @@ fromList ^CInterrupted.
 \end{code}
 In this sense, |RS.mk . RS.get| is not the identity function.
 
-\subsection{More than sets}
+\subsection{More Than Sets}
 
 The library not only provides recursively definable sets, but also other data types, in particular a variant of the ordinary Booleans that are recursively definable; see \cref{fig:api} for an excerpt of the API. Again, we have analogues of the usual operations (literals, conjunction and disjunction), and as before, a possibly recursively defined expression of type |RBool| will evaluate to “the” Boolean value which solves these defining equations.
 
@@ -532,7 +532,7 @@ For the theoretically inclined, this plays into the “$A$ has finite height” 
 
 It would not be unreasonable, however, to add |map| to the |RSet| API, as it may be quite useful for some applications, and maybe in these applications the equation have a finite solution just fine. If we'd do that, we could no longer \emph{guarantee} termination for all possible expressions (as shown by the example above), but if an expression yields a result, it will be the least fixed point of the defining equation. One can argue that this would be fine for a Haskell library, as Haskell programmers are used to deal with partiality due to non-termination.
 
-\subsection{The black hole}\label{sec:blackhole}
+\subsection{The Black Hole}\label{sec:blackhole}
 
 We said that “all finite, possibly recursive expressions yield a result”. Unfortunately, that is not completely true: If a value of type |RSet| is defined to be simply itself, with none of the |RSet| operations involved, it will not work:
 \begin{code}
@@ -556,7 +556,7 @@ A programming language that integrates these features first-class could take car
 
 Before we leave the user's point of view and look under the hood of the library, let us walk through a slightly larger and more realistic use-case. We hope that this example shows that using recursively definable values allows for noticeably more declarative and elegant programs.
 
-\subsection{First without recursion}
+\subsection{First Without Recursion}
 
 Let us consider a small program analysis of a functional language with lazy let-bindings, (mutual) recursion and exceptions. It should determine whether evaluating an expression may throw an (uncaught) expression.
 
@@ -598,7 +598,7 @@ Our language is lazy, so to determine whether evaluating a variable can throw,
 we have to carry around an
 environment of type |M.Map V Bool| where we remember whether the corresponding right-hand side could throw. |Throw| and |Catch| certainly can resp.\ cannot throw. The analysis isn't higher order, so for lambdas we assume they can throw if their body can throw, and for applications if either subexpression can throw. Finally for |Let|, we extend the environment with the analysis result of the bound variable's right-hand side and descend.
 
-\subsection{Avoiding the black hole}
+\subsection{Avoiding the Black Hole}
 So far, so standard. But what about |LetRec|? Here, the analysis result of each right-hand side depends on the analysis results of all right-hand sides. We can try to simply do what we did in the |Let| case:
 \restorecolumns
 \begin{code}
@@ -636,7 +636,7 @@ All we had to do was to use |RBool| instead of |Bool| in the type of the local, 
 
 It is worth noting that the environment (|M.Map V RBool|) is still the conventional lazy map, \emph{not} some |RMap|. We use it to tie the knot for the recursive equations on |RBool|, just as we did in the example in the introduction, but no further magic is needed.
 
-\subsection{Using all the values}\label{sec:all-values}
+\subsection{Using All the Values}\label{sec:all-values}
 
 The example above calculates only one final result, whether the whole expression canThrow. A real compiler pass might want to use the analysis result at each node to update the AST (e.g.\ remove redundant calls to |Catch|, or remember analysis results in the AST as GHC would do). To keep the example simple for the paper we do not do that, as the necessary plumbing would obscure the point (see \cref{sec:proganalexp} for the complete function).
 
@@ -655,7 +655,7 @@ We'd have to be careful that the |RBool| returned by |go| does not depend on any
 
 %The ability to query each “vertex” as we go sets this approach apart from other idioms with a
 
-\subsection{Alternative approaches}\label{sec:casestudyalts}
+\subsection{Alternative Approaches}\label{sec:casestudyalts}
 What would we do if we did not have |RBool| at our disposal? Here are some common options:
 \begin{itemize}
 \item We can perform an explicit fixpoint analysis in the |LetRec| case: Initialize the |env_bind| with all variables mapped to |False|, descend, check if now any analysis result has changed, and if so, re-analyze all of them, until we found a solution.
@@ -694,11 +694,11 @@ So, we regard the primitives of this paper as \emph{the raw material from which 
 \end{quote}
 This is our goal; whether the abstraction presented in \cref{sec:exploration} is beautiful is in the eye of the beholder.
 
-\subsection{A naive implementation}
+\subsection{A Naive Implementation}
 
 The core idea behind the implementation can be explained in two simple steps: First, we use an imperative API to declare values, register their relationships and read their values, and then we wrap that in a pure and sufficiently lazy API. We begin by outlining a naive implementation that initially ignores issues of reentrancy-safety, modularity, performance and space-leaks.
 
-\subsection{An imperative core}\label{sec:impcore}
+\subsection{An Imperative Core}\label{sec:impcore}
 
 A typical \emph{imperative} API to describe and solve a set of recursive equations provides functions to
 \begin{enumerate}
@@ -734,7 +734,7 @@ fromList [23,42]
 
 At this point, the actual implementation of this API is not that interesting. In a simple implementation a cell would consist of a current value (initialized to the empty set), and a list of cells depending on this value, and then the changes due to calls to |defCellInsert| are propagated through this network until no more changes need to be propagated (\cref{sec:impcoreimpl} re-phrases this summary in Haskell). Of course, more sophisticated algorithms may lurk underneath this interface.
 
-\subsection{The pure wrapping}
+\subsection{The Pure Wrapping}
 
 The more interesting question is how to get from the imperative |Cell| code to the pure |RSet| API, consisting of just |insert :: a -> RSet a -> RSet a| and |get :: RSet a -> Set a|?
 
@@ -781,11 +781,11 @@ The function |get| does not do much: It triggers the |todo| action, and afterwar
 
 The |todo| action itself uses the flag to ensure it is only run once. Only therein the value |r2| is analyzed, and the relationship between the cells is registered. It also runs the |todo| action of the other cell. This way, a single call to |get| will recursively trigger the |todo| actions of all involved values -- and the flags prevent that process from running in cycles.
 
-\subsection{Less naively, please}
+\subsection{Less Naively, Please}
 
 This code describes the essence of our idea, and easily generalizes to the other operations of the |RSet| API. It is, however, naive in a few ways that are worth discussing.
 
-\subsubsection{Reentrancy and thread safety.}\label{sec:thread}
+\subsubsection{Reentrancy and Thread Safety.}\label{sec:thread}
 
 The |done| flag is used to ensure that the |todo| action is run exactly once. But if |get| is invoked concurrently, the code above is obviously racy.
 
@@ -826,7 +826,7 @@ The library presents itself with a innocent looking, pure and simple interface (
 
 We believe the library is indeed pure: The exposed API is designed so that a set of equations has a \emph{unique} solution, and since it solves these equations, the nice equational theory one expects from a pure functional program still holds. Yet, there are some caveats worth pointing out.
 
-\subsection{Contextual equivalences and lambda lifting}\label{sec:lim-lambda-lift}
+\subsection{Contextual Equivalences and Lambda Lifting}\label{sec:lim-lambda-lift}
 
 In general in Haskell, if we have a recursive value definition involving an expression |e|, it is ok to turn that into a recursive function definition abstracting over that expression: We can go from
 \begin{code}
@@ -854,17 +854,17 @@ In particular, since an optimizing compiler tends to be careful to not worsen th
 
 \Citet[Fact 3.7]{sabry} points out that merely changing the set of observational equivalences does \emph{not}, in general and on its own, imply that the extended language is no longer pure.
 
-\subsection{Equivalence of sets}
+\subsection{Equivalence of Sets}
 
 The purity of this library rests on the fact that the equations have a unique solution, and therefore it does not matter how the result is calculated. This argument has a weakness in the case of |RSet| because the underlying |Set| type, implemented as a weight-balanced binary search tree \citep{adams-tr,nievergelt}, does not have a unique representation, and a different evaluation order may lead to results that are differently represented. This is only observable by intentionally breaking the abstraction via the |Data.Set.Internal| module, but it is possible.
 
-\subsection{Unproven claims}
+\subsection{Unproven Claims}
 
 Our claims above about the safety and purity of the exposed interface are not yet backed by a formal proof. Executing such a proof would first require a formal notion of what “pure” even means, which is not quite clear. Formal criteria have been proposed by \citet{sabry}, \citet{longley} and \cite{pure-functional}, but they do not easily apply to our setting. Additionally, we’d need a formal framework that allows us to reason about lazy programs with |unsafePerformIO|, |MVar|, laziness and concurrency.
 
 The maybe most similar work are the two mechanized proofs that |runST :: (forall s. ST s a) -> a| is safe \citep{runST,runST2}: The contextual equivalences of the pure language still hold when extending the language with |runST|, and thus the extension is fully abstract.  However, their languages are not call-by-need (which is crucial in our case) and not concurrent (which is also relevant), and as discussed in the previous section, our extension preserves some, but not all contextual equivalences.
 
-\subsection{Denotational semantics}\label{sec:denotational}
+\subsection{Denotational Semantics}\label{sec:denotational}
 
 We know how to describe pure functional programming languages elegantly using denotational semantics and fixed-point theorems. Domain theory and fixed-point theorems also underpin the data structures presented here. We would therefore expect that our extended language has a nice denotational semantics as well, but it does not seem to be straight forward, for two reasons:
 \begin{itemize}
@@ -877,7 +877,7 @@ We know how to describe pure functional programming languages elegantly using de
 
 The present work draws inspiration from and connects to various directions.
 
-\subsection{Fixpoint solvers and propagation networks}
+\subsection{Fixpoint Solvers and Propagation Networks}
 
 \Cref{sec:impcore} describes the “imperative core” of our library: An underlying library that allows us to declare the cells of a possibly cyclic graph of values with their relations and finds the solution. For the purposes of this paper we can assume this to be a black box, to avoid getting distracted by questions related to the theory and implementation of this black box, as tempting as these questions may be.
 
@@ -892,7 +892,7 @@ Also related is the concept of \emph{propagator network} \citep{propagator}, alt
 There are some similarities to our work (uses |unsafePerformIO| under the hood, relies on monotonicity to guarantee a unique result), but also significant differences: LVars come with a monadic interface while we avoid monads; our library allows to pull out many pure values, while |runPar| discharges the |Par| monad only once; with LVar one can do more than just solve equations. It thus does not seem to be possible to implement our library using just their public, safe interface.
 
 
-\subsection{Shallow graph embeddings and observable sharing}
+\subsection{Shallow Graph Embeddings and Observable Sharing}
 
 \Citet{observable-sharing} made sharing observable in Haskell, so that they can very elegantly describe logic circuits in Haskell. They extend pure Haskell with operations that one might dismiss as impure (observable object identity), point out that this breaks some equational equivalences of Haskell, but that this may be acceptable, given that some of these equivalences  are not benign code transformations to begin with, as they can duplicate arbitrary amount of work anyways -- a line of reasoning you may recognize from \cref{sec:lim-lambda-lift}. \Citet{typesafe-sharing} proposed a variant with a more focused primitive |reifyGraph| that turns a knot-tied value into an explicit graph data structure.
 
@@ -904,7 +904,7 @@ The graph is never actually turned into a (Haskell-level) data structure and the
 Looking beyond Haskell we want to point out CoCaml \citep{cocaml}, which allows the OCaml programmer to observe the structure of knot-tied (coinductive) data, and even process such data while preserving the sharing (so that a |map| over a cyclic list can return a cyclic list).
 
 
-\subsection{Logic programming}
+\subsection{Logic Programming}
 
 For the kind of use-cases presented here, logic programming languages like Prolog and Datalog are certainly on their home turf. What we bring to the table is the seamless integration into an existing purely functional language.
 
@@ -937,7 +937,7 @@ The main aim of Hatafun is to explore an embedding of datafun's type system for 
 
 \Cref{sec:hatafun-proganal} contains an Hatafun implementation of our case study.
 
-\subsection{Data flow libraries in Haskell}\label{sec:datafix}
+\subsection{Data Flow Libraries in haskell}\label{sec:datafix}
 
 \Citet{datafix} also observes that compiler analyses implemented in pure functional languages tend to mix specifying the data flow equations with the actual solving, and that ideally solving ought to be independent of the syntactic nesting structure of the input program, echoing our concerns in \cref{sec:casestudyalts}. His \emph{datafix} library explores a monadic solution and can handle our case study, but only with significant refactoring:
 \begin{itemize}
@@ -1020,7 +1020,7 @@ To complete our comparison with related work, in particular Hatafun (\cref{sec:h
 
 The implementations were provided by the authors of the respective libraries, for which we are grateful. The following listings have been modified from their original version. They have been formatted to fit this paper.
 
-\subsection{Program analysis using Hatafun}\label{sec:hatafun-proganal}
+\subsection{Program Analysis Using Hatafun}\label{sec:hatafun-proganal}
 
 Yihong Zhang ported the code from \cref{sec:casestudy} as follows:
 
@@ -1032,7 +1032,7 @@ He explained that the use of |unlift| on the expression to be analyzed is unsafe
 More relevant is that, similar as in \cref{sec:hatafun}, this does not set up a system of mutually recursive equations of boolean values, with one variable per AST node, but at each |LetRec| it declares and solves a single equation for the environment as a whole. With nested |LetRec|s, this can blow up the complexity, as explained in \cref{sec:casestudyalts}, which brings us to the next alternative worth considering.
 
 
-\subsection{Program analysis using datafix}\label{sec:datafix-code}
+\subsection{Program Analysis Using Datafix}\label{sec:datafix-code}
 
 The datafix library mentioned in \cref{sec:datafix} was created in particular due to the desire to free the equations to be solved from the syntactic structure of the input program. Sebastian Graf shows how the case study can be implemented using datafix, and went straight for the harder problem of a combined analysis/transformation pass, corresponding to \cref{sec:proganalexp}.
 
@@ -1051,19 +1051,19 @@ Is this really pure? Did we create a beautiful abstraction, or are the types a l
 
 In this section we discuss these questions, however without always being able to give a definite answer, and invite you to join the discussion.
 
-\subsection{What does purity even mean?}
+\subsection{What Does Purity Even Mean?}
 
 We found that this question is not easy to answer, because there does not exist a single, clear and widely accepted definition of “pure” functional programming.
 This paper is not the place to give an authoritative answer, so we look at various language properties commonly associated with a pure functional language in general and Haskell in particular,
 and see whether they still hold in the presence of our library.
 
-\subsection{Type safety}
+\subsection{Type Safety}
 
 Purity probably means little without memory and type safety, and we certainly want to preserve Haskell's safety properties: So what we get out of |RS.get| should really be a valid |Set|, and not some corrupted memory.
 
 It is not hard to break type safety with |unsafePerformIO|, especially when there are mutable references and polymorphism around. Nevertheless, we are fairly confident that we did not and that our library is type and memory safe.
 
-\subsection{No (observable) side effects}
+\subsection{No (Observable) Side Effects}
 
 Our library uses |IO| inside, and clearly we would not consider it to be pure if inserting |42| into a set would make the computer eject the CD from its drive. Avoiding such blatant side effects is simple -- we just don't do it.
 
@@ -1071,7 +1071,7 @@ However, |RS.insert 42 rs| \emph{does} destructively modify mutable data structu
 
 Note that the space leak issue of the naive implementation described in \cref{sec:spaceleak} is \emph{almost} an issue of this kind: If we’d include space leaks in our notion of “observable behavior”, then that would be an example of such a side-effect issue.
 
-\subsection{Evaluation order independence}
+\subsection{Evaluation Order Independence}
 
 Even more, it should not matter in which order the various subexpressions are evaluated. In
 \begin{code}
@@ -1086,7 +1086,7 @@ Achieving this in our library required some care. Because our computation are tr
 
 In the case of |RSet| this guarantee may no longer hold if one breaks the abstraction of the |Data.Set| library and looks at the internal representation, as the same set can be represented by differently balanced search trees internally.
 
-\subsection{Referential transparency}\label{sec:reftrans}
+\subsection{Referential Transparency}\label{sec:reftrans}
 
 Purity is usually understood to also imply referential transparency: If |x| is defined to be |e|, then we can replace an occurrence |x| with |e|, and vice-versa, without changing the meaning of the program.
 (Care has to be taken when applying this to recursive definitions. Of course we do not expect |let x = 1 in x| to be the same as |let x = x in x|, although we merely replaced |1| with |x|.)
@@ -1095,7 +1095,7 @@ So is our library still referential transparent? By virtue of always calculating
 
 This restriction to fixpoints, i.e.\ to solutions of a set of equations, puts a clear limit on the kind of observations we allow the programmer to make about the recursive equations. For example, it would not be pure if the programmer could obtain the number of equations. This rules out using our approach for use-cases where the actual \emph{structure} of the equations (and not just a solution) is of interest, e.g.\ when generating circuit descriptions \cite{observable-sharing}.
 
-\subsection{Program equivalences and lambda lifting}\label{sec:sat}
+\subsection{Program Equivalences and Lambda Lifting}\label{sec:sat}
 
 Referential transparency is a crucial ingredient to equational reasoning: rewriting the code according to a set of rules, while preserving its meaning. Beyond just replacing |x| with its definition |e| (also called \emph{unfolding} or \textdelta-reduction) there are further program transformations that we expect to preserve semantics. They may be applied by optimizing compiler, used in program verification or simply by a programmer trying to understand the meaning or improve the structure of some code.
 
@@ -1125,13 +1125,13 @@ As you ponder this question, note that if you include (asymptotic) resource usag
 
 \Citet[Fact 3.7]{sabry} points out that merely changing the set of observational equivalences does \emph{not}, in general and on its own, imply that the extended language is no longer pure.
 
-\subsection{Compiler transformations}\label{sec:comptrans}
+\subsection{Compiler Transformations}\label{sec:comptrans}
 
 The compiler tends to share the attitude that (at least asymptotic) complexity is a relevant aspect of the program's semantics, and will thus be careful to preserve (recursive) sharing that is explicit in the source program. Therefore we can be fairly certain that it will not just willy-nilly apply such lambda lifting to our code.
 
 The same holds for all the other transformations applied by the compiler, such as partial evaluation, case-of-case, worker/wrapper, common subexpression elimination etc.\ \citep{optimiser}. Because our library has these nice equational properties as long as sharing is preserved, we can be fairly certain that all these are still meaning-preserving in the presence of our library.
 
-\subsection{Sabry's criterion}
+\subsection{Sabry's Criterion}
 
 One possible definition for purity is offered by \citet{sabry}:
 \begin{quote}
@@ -1145,7 +1145,7 @@ It is not straight-forward to apply this criterion to our library, or Haskell it
 Because it requires multiple implementations we find Sabry’s criterion of purity not fully convincing. Maybe there exists a suitable criterion that works with a single language semantics, maybe by listing observable equivalences that must hold for a language to be considered pure?
 We'll leave this question hanging, hoping it can tempt someone to give a satisfying answer.
 
-\subsection{Longley’s criterion}
+\subsection{Longley’s Criterion}
 
 \Citet{longley} makes the observation that there exist functions with perfectly pure and functional \emph{behavior} that cannot be \emph{implemented} in the pure fragment of the language, but can be implemented in a suitable extension (ML with references in his case). Our library is an example of that: It behaves pure and functional, but needs extensions (like |unsafePerformIO|) to be implemented.
 
