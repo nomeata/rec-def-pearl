@@ -457,8 +457,7 @@ True
 ghci> s3 == S.delete 42 s1
 True
 \end{code}
-
-That is good, because that is how we want equations in a functional programming language to behave.
+Good! That is how we want equations in a functional programming language to behave.
 
 At this point you might interject that these are not the only possible solutions to this system of equations. Returning to the smaller example of |let s = RS.insert 42 s|, we find that our result |S.fromList [42]| indeed solves the equation |s == S.insert 42 s|, but so does |S.fromList [42,43]|. Still, we would not consider that a “good” solution, and would be surprised if we'd get that.
 %
@@ -510,7 +509,7 @@ This explains why some functions from the underlying ordinary data type (such as
 
 \subsection{Termination}
 
-Another function from |Data.Set| that we do not have in |Data.Recursive.Set| is the function |map :: Ord b => (a -> b) -> Set a -> Set b|. This may be a bit surprising, as this function is perfectly monotonic with regard to the subset relation. But it can cause other problems: Imagine we had it, and wrote
+Another function from |Data.Set| that we do not have in |Data.Recursive.Set| is the higher-order function |map :: Ord b => (a -> b) -> Set a -> Set b|. This may be a bit surprising, as this function is perfectly monotonic with regard to the subset relation. But it can cause other problems: Imagine we had it, and wrote
 \begin{code}
 let s = RS.insert 0 (RS.map (+1) s) in RS.get s
 \end{code}
