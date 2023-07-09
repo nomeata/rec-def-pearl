@@ -860,7 +860,7 @@ We know how to describe pure functional programming languages elegantly using de
 \item As discussed in \cref{sec:lim-lambda-lift}, sharing now affects termination. How can we give a denotational semantics so that it distinguishes tied knots (|let xs = 1 : xs in xs|) from general recursion (|let f x = x : f x in f 1|)?
 \item We use |let| to describe both recursion in Haskell's domain, e.g. for recursive functions and knot-tied data structures, as well as for the equations to be solved by our library. This entanglement of two seemingly unrelated partial orders so far resisted disentanglement.
 \end{itemize}
-\Citet{clairvoyant} give a denotational semantics with a cost model of lazy evaluation, and in their semantic domain knot-tying can be recognized. We are currently trying to figure out if we can solve the second problem in that setting as well.
+\Citet{clairvoyant} give a denotational semantics with a cost model of lazy evaluation, and in their semantic domain knot-tying can be recognized. A denotational semantics for our library based on that is currently work in progress, and we welcome interested readers to contact the authors about it.
 
 \section{Related work}\label{sec:related}
 
