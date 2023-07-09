@@ -981,13 +981,6 @@ rTrans3 g = M.fromList [ (v, S.toList (go S.empty [v])) | v <- M.keys g ]
                     |  otherwise          =  go (S.insert v seen) (g M.! v ++ vs)
 \end{code}
 
-\section{Fused program analysis and transformation}\label{sec:proganalexp}
-
-In \cref{sec:all-values} we pointed out that one advantage of our library is that it not only allows defining mutually recursive equations, but (lazily) query that graph as we go. In our example, we rewrite |Catch e| to |e| when the analysis proves that |e| cannot throw. The full code of the analysis and transformation pass is a bit unwieldy, as it returns both the analysis result and the modified code, so we put it into this appendix.
-
-\typeout{(./code/CanThrow3.lhs)} % For latexmk
-%include ./code/CanThrow3.lhs
-
 \section{The imperative core's implementation}\label{sec:impcoreimpl}
 
 In \cref{sec:impcore} we assumed a module exporting the following API:
@@ -1003,6 +996,14 @@ A simple implementation could look like this:
 
 \typeout{(./code/Cell.lhs)} % For latexmk
 %include ./code/Cell.lhs
+
+\section{Fused program analysis and transformation}\label{sec:proganalexp}
+
+In \cref{sec:all-values} we pointed out that one advantage of our library is that it not only allows defining mutually recursive equations, but (lazily) query that graph as we go. In our example, we rewrite |Catch e| to |e| when the analysis proves that |e| cannot throw. The full code of the analysis and transformation pass is a bit unwieldy, as it returns both the analysis result and the modified code, so we put it into this appendix.
+
+\typeout{(./code/CanThrow3.lhs)} % For latexmk
+%include ./code/CanThrow3.lhs
+
 
 \section{The case study in related work}
 

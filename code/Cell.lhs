@@ -21,13 +21,10 @@
 >     unless (old == x) $ join (readMVar notify)
 >
 > watchCell :: Cell a -> IO () -> IO ()
-> watchCell (MkCell m notify) act =
->     modifyMVar_ notify (\a -> pure (act >> a))
+> watchCell (MkCell m notify) act = modifyMVar_ notify (\a -> pure (act >> a))
 >
 > defCellInsert :: Ord a => Cell a -> a -> Cell a -> IO ()
-> defCellInsert c1 x c2 = do
->     watchCell c2 update
->     update
+> defCellInsert c1 x c2 = watchCell c2 update >> update
 >   where
 >     update = do
 >         s <- getCell c2
