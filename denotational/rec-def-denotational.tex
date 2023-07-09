@@ -99,8 +99,8 @@
 
 
 \begin{abstract}
-This document contains unpublished and work-in-progress thoughts about a denotational description of what's presented in the ICFP'23
-\href{https://joachim-breitner.de/publications/rec-def-pearl.pdf}{Functional Pearl: More fixpoints!}
+This document contains unpublished and work-in-progress thoughts about a denotational description of the language extension proposed in
+\href{https://joachim-breitner.de/publications/rec-def-pearl.pdf}{More fixpoints! (Functional Pearl)} from ICFP 2023.
 
 \medskip\noindent
 You are looking at the version from \today.
@@ -110,13 +110,26 @@ You are looking at the version from \today.
 
 \section{Introduction}
 
-In the More Fixpoints paper, I extend a lazy pure language (Haskell) with the ability to define recursive equations involving Sets and/or Booleans, and still produce a result. Since the semantics of pure functional programming, and the semantics of solving such equations, can both be elegantly expressed using fixpoints on partial orders, it seems prudent to search for a denotational semantics that can describe this combination. In this document I note down some some experiments in that direction.
+In the “More Fixpoints!” functional pearl, I extend a lazy pure language (Haskell) with the ability to define recursive equations involving Sets and/or Booleans, and still produce a result. Since the semantics of pure functional programming, and the semantics of solving such equations, can both be elegantly expressed using fixpoints on partial orders, it seems prudent to search for a denotational semantics that can describe this combination. In this document I note down some some experiments in that direction.
+
+Here is an executive summary of this text:
+\begin{itemize}
+\item We use small simply typed example language extended with recursively definable booleans (\cref{sec:language}), and give it a \emph{call-by-name} denotational semantics (\cref{sec:denotation}). Functions are no longer continuous there, but still montone, and because the denotation is a fixed point, equataional reasoning (\cref{sec:equational-reasoning}) works well.
+\item There are reasons why simpler approaches (simpler domains, untyped semantics) do not work (\cref{sec:why-not})
+\item The call-by-name semantics assigns non-bottom to programs that do not actually terminate. We can fix that using a denotational semantics in the style of  “Call-by-Need Is Clairvoyant Call-by-Value” to only allow knot-tied recursion (\cref{sec:call-by-need}).  This semantics seems to appropriately describe the behavior of our programs. It is more abstract than an operational semantics, although we cannot deny that we would prefer even more elegance.
+\end{itemize}
+There is more work to be done. Questions you will not (yet) find the answer here are, among others:
+\begin{itemize}
+\item Does the call-by-need cost accounting order on $D_c$ work as intended?
+\item Can we perform interesting proofs, and can we do it well?
+\item Can we prove the semantics correct and adequate with regard to a suitable operational semantics?\item How abstract is the semantics (i.e. how does semantic equality and contextual equivalence relate), and can we improve that?
+\end{itemize}
 
 \section{Denotational semantics}
 
 The most promising approach so far is to turn the introduction forms of our recursively defineable data types into regular constructors, and move all magic into the \texttt{get} operation.
 
-\subsection{The language}
+\subsection{The language}\label{sec:language}
 
 As usual, we focus on a small core language to demonstrate our ideas. For our purposes, let us used a simply typed lambda calculus with recursive bindings, extended with the conventional \texttt{Bool} data type and our \texttt{RBool}:
 
@@ -172,7 +185,7 @@ with denotation $\dId(d)$. Think of $\sId~e = \sAnd~x~x$ resp. $\dId(d)=\dAnd(d,
 
 \end{enumerate}
 
-\subsection{The denotation of expressions}
+\subsection{The denotation of expressions}\label{sec:denotation}
 
 Finally we can give the denotation of (well-typed) expressions: For every typing derivation $\Gamma \vdash e \colon \tau$ and well-typed environment $\rho \in \Pi_{x \in \Var} \tD{\Gamma(x)}$ we can deifne the dentotation $\D{e}_\rho \in \tD{\tau}$. The equations for the lambda calculus fragment, the booleans, and the $\tRBool$ constructors are standard:
 \begin{align*}
@@ -294,7 +307,7 @@ It seems that that semantics will simply be less defined than this one, but agre
 
 \end{itemize}
 
-\subsection{Equational reasoning}
+\subsection{Equational reasoning}\label{sec:equational-reasoning}
 
 Now that we have defined the semantics, can we use it?
 
@@ -348,7 +361,7 @@ will be solved as $\top$ by $\interp$ and thus end up being $\bot$, as it should
 
 If we want to model $\texttt{RMap a b}$, where values from $D$ are stored, but not looked at by $\interp$, the argument for why $\D{\sGet}$ is continuous is more involved, as we cannot simply argue via maximality, but may need some kind of parametricity argument.
 
-\subsection{Why not\ldots}
+\subsection{Why not\ldots}\label{sec:why-not}
 
 Let's briefly look at other attempts and variants, and where they failed.
 
@@ -398,7 +411,7 @@ We'd now have to solve that domain equation, and prove that a CPO satisfying tha
 
 We side-step the issue by focusing on the simply typed fragment, where we can assemble the semantic domain in a type-syntax driven way, without the need to recurse through $\to_m$.
 
-\section{Tying the knot with lazy evaluation}
+\section{Tying the knot with lazy evaluation}\label{sec:call-by-need}
 
 As mentioned above, our denotational semantics is too permissive: It assignes non-bottom meaning to programs we do not expect to run. This is because we only expect to handle those (infinite) formulas that arise from finite graphs in the heap, i.e.\ a tied knot, when evaluated lazily, but not others.
 
