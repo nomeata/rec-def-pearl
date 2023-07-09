@@ -857,7 +857,7 @@ The maybe most similar work are the two mechanized proofs that |runST :: (forall
 
 We know how to describe pure functional programming languages elegantly using denotational semantics and fixed-point theorems. Domain theory and fixed-point theorems also underpin the data structures presented here. We would therefore expect that our extended language has a nice denotational semantics as well, but it does not seem to be straight forward, for two reasons:
 \begin{itemize}
-\item As discussed in \cref{sec:lim-lambda-lift}, sharing now affects termination. How can we give a denotational semantics so that it distinguishes tied knots (|let xs = 1 : xs in xs|) from general recursion (|let f x = x : f x in f 1|)?
+\item As discussed in \cref{sec:lim-lambda-lift}, sharing now affects termination. How can we give a denotational semantics so that it distinguishes tied knots (|let xs = 1 : xs in xs|) from general recursion (\mbox{|let f x = x : f x in f 1|})?
 \item We use |let| to describe both recursion in Haskell's domain, e.g. for recursive functions and knot-tied data structures, as well as for the equations to be solved by our library. This entanglement of two seemingly unrelated partial orders so far resisted disentanglement.
 \end{itemize}
 \Citet{clairvoyant} give a denotational semantics with a cost model of lazy evaluation, and in their semantic domain knot-tying can be recognized. A denotational semantics for our library based on that is currently work in progress, and we welcome interested readers to contact the authors about it.
