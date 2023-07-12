@@ -505,11 +505,13 @@ and we would like to statically rule that out.
 
 The underlying bit of theory is the theorem that a monotone function $f : A \to A$ on a partially ordered set $A$ with least element $\bot \in A$ and finite height has a unique least fixed point. This is well-known consequence of the Knaster-Tarski theorem (e.g.\ see \citep{lazyleast}), and if the sentence means something to you, you probably already saw it coming. And if it doesn't, it does not matter for reading this paper.
 
-This explains why some functions from the underlying ordinary data type (such as |Data.Set|'s |difference|) are not available, as they are not monotonic.
+%This explains why some functions from the underlying ordinary data type (such as |Data.Set|'s |difference|) are not available, as they are not monotonic.
 
 \subsection{Termination}
 
-Another function from |Data.Set| that we do not have in |Data.Recursive.Set| is the higher-order function |map :: Ord b => (a -> b) -> Set a -> Set b|. This may be a bit surprising, as this function is perfectly monotonic with regard to the subset relation. But it can cause other problems: Imagine we had it, and wrote
+Another function from |Data.Set| that we do not have is
+%in |Data.Recursive.Set| is the higher-order function
+|map :: Ord b => (a -> b) -> Set a -> Set b|. This may be a bit surprising, as this function is perfectly monotonic with regard to the subset relation. But it can cause other problems: Imagine we had it, and wrote
 \begin{code}
 let s = RS.insert 0 (RS.map (+1) s) in RS.get s
 \end{code}
@@ -517,9 +519,11 @@ Does this equation have a solution? Clearly the set |s| needs to contain |0|. Bu
 
 So we cannot allow this function for |RSet| if we want to guarantee a result for every finite recursive expression.
 
-For the theoretically inclined, this plays into the “$A$ has finite height” requirement in the theorem above. You might be irked that the type |Set a|, ordered by subset inclusion, does not actually have finite height (if |a| is not finite). With the current API (without functions like |map|) for every \emph{finite} |RSet| expression there are only finitely many possible members, and thus the relevant “subtype” has finite height, and all is well again.
+For the theoretically inclined, this is linked to the theorem that if $A$ has finite height, the smallest fixed-point of a monotonic function $f$ can be found by starting with $\bot$ and iterating $f$.
+%this plays into the “$A$ has finite height” requirement in the theorem above.
+You might be irked that the type |Set a|, ordered by subset inclusion, does not actually have finite height (if |a| is not finite). With the current API (without functions like |map|) for every \emph{finite} |RSet| expression there are only finitely many possible members, and thus the relevant “subtype” has finite height, and all is well again.
 
-It would not be unreasonable, however, to add |map| to the |RSet| API, as it may be quite useful for some applications, and maybe in these applications the equation have a finite solution just fine. If we'd do that, we could no longer \emph{guarantee} termination for all possible expressions (as shown by the example above), but if an expression yields a result, it will be the least fixed point of the defining equation. One can argue that this would be fine for a Haskell library, as Haskell programmers are used to deal with partiality due to non-termination.
+It would not be unreasonable, however, to add |map| to the |RSet| API, as it may be quite useful for some applications, and maybe in these applications the equations have a finite solution just fine. If we'd do that, we could no longer \emph{guarantee} termination for all possible expressions (as shown by the example above). But if an expression yields a result, it will be the least fixed point of the defining equation. One can argue that this would be fine for a Haskell library: Haskell programmers are used to dealing with partiality due to non-termination.
 
 \subsection{The Black Hole}\label{sec:blackhole}
 
@@ -531,7 +535,6 @@ fromList ^CInterrupted.
 And it’s not for lack of a solution: Clearly the empty set is the least solution to the equation |s == s|.
 
 Because our library is but a library, despite the apparent magic inside (which we will uncover in \cref{sec:impl}), with a definition like |let s = s|, it has no chance to insert its magic.
-
 The problem goes away as soon as \emph{any} function from the API is involved in the definition, even if it is semantically the identity:
 \begin{code}
 ghci> let x = RS.unions [x] in RS.get x
@@ -565,7 +568,6 @@ data Exp  =  Var V | Lam V Exp | App Exp Exp | Throw | Catch Exp
 \end{figure}
 
 Let us ignore |LetRec| at first, and write our analysis as a simple traversal of the AST:
-\nopagebreak
 \savecolumns
 \begin{code}
 canThrow :: Exp -> Bool
@@ -600,6 +602,8 @@ Note that, crucially, we use the extended environment |env'| not only for the bo
 
 Alas, this does not work: As soon as we try to analyze an expression that uses recursion, we will fall into a black hole. The crux is that |Bool| is not recursively definable, because its operations (here only disjunction, |(||||)|) are not lazy.
 
+\pagebreak
+
 But if we use |RBool| instead of |Bool|, it just works:
 \restorecolumns
 \begin{code}
@@ -623,11 +627,11 @@ canThrow e = RB.get (go M.empty e)
 \end{code}
 All we had to do was to use |RBool| instead of |Bool| in the type of the local, use the corresponding operations (|RB.true|, |RB.false| and |RB.|||||) and  project out to normal Booleans at the end (using |RB.get|). A slight blemish is that we also had to insert a call to |RB.id| to not fall over the input |LetRec [("x", Var "x")]|, as explained in \cref{sec:blackhole}.
 
-It is worth noting that the environment (|M.Map V RBool|) is still the conventional lazy map, \emph{not} some |RMap|. We use it to tie the knot for the recursive equations on |RBool|, just as we did in the example in the introduction, but no further magic is needed.
+It is worth noting that the environment (|M.Map V RBool|) is still a conventional lazy map, \emph{not} some |RMap|. We use it to tie the knot for the recursive equations on |RBool|, just as we did in the example in the introduction, but no further magic is needed.
 
 \subsection{Using All the Values}\label{sec:all-values}
 
-The example above calculates only one final result, whether the whole expression canThrow. A real compiler pass might want to use the analysis result at each node to update the AST (e.g.\ remove redundant calls to |Catch|, or remember analysis results in the AST as GHC would do). To keep the example simple for the paper we do not do that, as the necessary plumbing would obscure the point (see \cref{sec:proganalexp} for the complete function).
+The example above calculates only one final result, namely whether the whole expression |canThrow|. A real compiler pass might want to use the analysis result at each node to update the AST (e.g.\ remove redundant calls to |Catch|, or remember analysis results in the AST as GHC would do). To keep the example simple for the paper we do not do that, as the necessary plumbing would obscure the point (see \cref{sec:proganalexp} for the complete function).
 
 But our library does allow it: we can use |RB.get| within the function to get the analysis result for \emph{any} subexpression and return a changed AST accordingly, e.g.
 \restorecolumns
@@ -647,7 +651,7 @@ We'd have to be careful that the |RBool| returned by |go| does not depend on any
 \subsection{Alternative Approaches}\label{sec:casestudyalts}
 What would we do if we did not have |RBool| at our disposal? Here are some common options:
 \begin{itemize}
-\item We can perform an explicit fixpoint analysis in the |LetRec| case: Initialize the |env_bind| with all variables mapped to |False|, descend, check if now any analysis result has changed, and if so, re-analyze all of them, until we found a solution.
+\item We can perform an explicit fixpoint analysis in the |LetRec| case: Initialize the |env_bind| with all variables mapped to |False|, descend, check if now any analysis result has changed, and if so, re-analyze all of them, until we find a solution.
 
 Maybe we can be more clever and re-analyze only some of them.
 
@@ -663,7 +667,7 @@ GHC does this, as explained in \citet[Section 6.6]{modular}, but again at the co
 
 \item Another approach is to gather the full data flow problem from the \emph{whole} AST, solve it globally (thus also avoiding the problem mentioned in the previous bullet), and then distributing the analysis again to where we need it. This is reminiscent of how a constrained-based type inference algorithm works.
 
-It is a satisfying to know that the solving algorithm is free from having to follow the syntactic nesting structure of the program, and that the repeated passes of the fixpoint iteration do not have to traverse and re-analyze the AST over and over. The solver only sees the pure, distilled data-flow equations.
+It is a satisfying to know that the solving algorithm is free from having to follow the syntactic nesting structure of the program, and that the repeated passes of the fixpoint iteration do not require us to traverse and re-analyze the AST over and over. The solver only sees the pure, distilled data-flow equations.
 
 There are, however, petty practical issues with this approach (representing the equations as data, uniquely naming the cells, the separate passes for collecting the equations and using the results).
 At this point, one is likely going to hide this bookkeeping in a suitable monad, which can recover some of the lost elegance, but if the code could otherwise be written as pure functions, that is still quite a price to pay -- see \cref{sec:datafix} for where one such attempt led to.
@@ -674,7 +678,7 @@ When our library is applicable, it allows us to retain the concise elegance of t
 
 \section{Under the hood}\label{sec:impl}
 
-We hope that by now you are eager to learn how the |RSet| library is implemented. It is a regular Haskell library, without dedicated compiler support nor using compiler plugins. Maybe this sounds impossible, and we agree: The API and specification presented in the previous section \emph{cannot} be implemented in normal, safe, pure Haskell code.\footnote{At least we believe it is not possible, as we explain in \cref{sec:lim-lambda-lift}.}
+We hope that by now you are eager to learn how the |RSet| library is implemented. It is a regular Haskell library, without dedicated compiler support nor using compiler plugins. Maybe this sounds impossible, and we agree: The API and specification presented in the previous section \emph{cannot} be implemented in normal, safe, pure Haskell code.\footnote{At least we believe it is not possible, for reasons we lay out in \cref{sec:lim-lambda-lift}.}
 
 But it can be implemented using \emph{“unsafe”} features; in particular GHC's infamous function |unsafePerformIO :: IO a -> a|, which allows arbitrary side-effects in pure code. Before you turn away in disgust please allow us to quote \citet{unsafePerformIO} from their publication introducing this primitive:
 \begin{quote}
@@ -733,7 +737,7 @@ Furthermore, it has to be lazy in its second argument, else a recursive equation
 A value of type |RSet| consists of three fields
 \begin{itemize}
 \item The |Cell a| backing the value we are defining.
-\item An |IO ()| action, deferred until the value is actually needed. A value is needed if |get| is used on the |RSet|, or on another |RSet| that depends on this one.
+\item An |IO ()| action, deferred until the value is actually needed. A value is needed if |get| is used on this |RSet|, or on another |RSet| that depends on this one.
 \item A flag to remember if this deferred action has run already.
 \end{itemize}
 
@@ -768,7 +772,7 @@ get (MkRSet c todo _) = unsafePerformIO $ do
 
 The function |get| does not do much: It triggers the |todo| action, and afterwards returns the current value of the cell. The interesting bits are in the |insert| function: It creates a new cell to represent the result, and a “done”-flag. It returns these together with a |todo|-action, which is \emph{not yet run}. Note that the second argument, |r2|, is \emph{not} looked at yet, so |insert| is lazy, as required.
 
-The |todo| action itself uses the flag to ensure it is only run once. Only therein the value |r2| is analyzed, and the relationship between the cells is registered. It also runs the |todo| action of the other cell. This way, a single call to |get| will recursively trigger the |todo| actions of all involved values -- and the flags prevent that process from running in cycles.
+The |todo| action itself uses the flag to ensure it is only run once. Only therein the value |r2| is analyzed, and the relationship between the cells is registered. It also runs the |todo| action of the other cell. This way, a single call to |get| will recursively trigger the |todo| actions of all involved values -- and the “done”-flags prevent that process from running in cycles.
 
 \subsection{Less Naively, Please}
 
@@ -780,13 +784,13 @@ The |done| flag is used to ensure that the |todo| action is run exactly once. Bu
 
 Even worse: Because this is run from |unsafePerformIO|, even in a single-threaded environment we have to worry about reentrancy, as forcing any unevaluated user-provided expression could kick off execution of another call to |get|.
 
-In our library we address this with careful use of the |MVar| concurrency primitive \cite{concurrent}, and hide this cleanly behind a small abstraction for “possibly recursive |IO|-thunks” in the |System.IO.RecThunk| API.
+In our library we address this with careful use of the |MVar| concurrency primitive \cite{concurrent}, and hide this cleanly behind a small abstraction for “possibly recursive |IO|-thunks” in the |System.IO.RecThunk| module.
 
 The dejafu test library \citep{dejafu}, which can exhaustively explore all possible interleavings of concurrent code, has proven invaluable when implementing that abstraction: more than once we thought we had finally achieved thread-safety, only to be told that we were not there yet, until we eventually were able make the tests pass.
 
 \subsubsection{Modularity.}
 
-The naive code above supports just one value type, |Set|, because the underlying imperative propagator library |Cell| only supports that type. The full library abstracts over the underlying propagator. This way we can have recursively defined values of different types (|RSet a|, |RBool|), operations connecting them (e.g.\ |member|) and even allow solving heterogeneously typed sets of equations.
+The naive code above supports just one value type, |Set|, because the underlying imperative propagator library |Cell| only supports that type. The full library abstracts over the underlying propagator. This way we can have recursively defined values of different types (|RSet a|, |RBool|), operations connecting them (e.g.\ |member|) and so even allow solving heterogeneously typed sets of equations.
 
 Supporting different propagator libraries also opens the way for important performance optimizations that are specific to various value types. The most generic propagator implementation assumes no structure on its values besides equality, and just keeps propagating changes until the graph has stabilized. But if we can have different propagator implementations for different types, smarter propagator libraries can be written.
 
@@ -798,7 +802,7 @@ Similarly, a propagator library for finite sets can propagate just deltas, inste
 
 Another, maybe subtle, problem with our pure wrapping of an imperative propagator library is that it can easily lead to space leaks.
 
-Consider the |insert| function. With |rs2 = RS.insert x rs1| we create a new mutable cell for |rs2|, and tell the mutable cell in |rs1| to notify the other cell of any changes. This means that now somewhere in |rs1| there is a reference to |rs2| -- exactly the other way around from what one would expect from the code. This reference prevents resources allocated for |rs2| from being freed while |rs1| is alive.
+Consider the |insert| function. With |let rs2 = RS.insert x rs1| we create a new mutable cell for |rs2|, and tell the mutable cell in |rs1| to notify us of any changes. This means that now somewhere in |rs1| there is a reference to |rs2| -- exactly the other way around from what one would expect from the code. This reference prevents resources allocated for |rs2| from being freed while |rs1| is alive.
 
 This causes space leaks, where allocated resources are kept alive longer than expected or needed. As an extreme example, consider this interaction
 \begin{code}
@@ -860,7 +864,7 @@ We know how to describe pure functional programming languages elegantly using de
 \item As discussed in \cref{sec:lim-lambda-lift}, sharing now affects termination. How can we give a denotational semantics so that it distinguishes tied knots (|let xs = 1 : xs in xs|) from general recursion (\mbox{|let f x = x : f x in f 1|})?
 \item We use |let| to describe both recursion in Haskell's domain, e.g. for recursive functions and knot-tied data structures, as well as for the equations to be solved by our library. This entanglement of two seemingly unrelated partial orders so far resisted disentanglement.
 \end{itemize}
-\Citet{clairvoyant} give a denotational semantics with a cost model of lazy evaluation, and in their semantic domain knot-tying can be recognized. A denotational semantics for our library based on that is currently work in progress, and we welcome interested readers to contact the authors about it.
+\Citet{clairvoyant} give a denotational semantics with a cost model of lazy evaluation, and in their semantic domain knot-tying can be recognized. We are currently working on a denotational semantics for our library based on that and welcome interested readers to ask us about it.
 
 \section{Related work}\label{sec:related}
 
@@ -872,7 +876,7 @@ The present work draws inspiration from and connects to various directions.
 
 All the work in making fixpoint solvers and data-flow analyses efficient is relevant here \citep{kildall-73,kam-ullman-76}. An important difference to typical data-flow analyses is that in order to stay pure, we cannot afford to make conservative approximations while solving the equations (e.g.\ aborting with a safe guess after a certain number of iterations).
 
-Also related is the concept of \emph{propagator network} \citep{propagator}, although our use-case is a bit simpler, as information only flows in one direction along an edge, and once we queried the value of one vertex, we never add more constraints that would influence that vertex.
+Also related is the concept of \emph{propagator network} \citep{propagator}, although our use-case is a bit simpler, as information only flows in one direction along an edge, and once we queried the value of one vertex, we never add more constraints that would afterwards influence that vertex and invalidate the value we read.
 
 \subsection{LVars}
 
@@ -883,11 +887,11 @@ There are some similarities to our work (uses |unsafePerformIO| under the hood, 
 
 \subsection{Shallow Graph Embeddings and Observable Sharing}
 
-\Citet{observable-sharing} made sharing observable in Haskell, so that they can very elegantly describe logic circuits in Haskell. They extend pure Haskell with operations that one might dismiss as impure (observable object identity), point out that this breaks some equational equivalences of Haskell, but that this may be acceptable, given that some of these equivalences  are not benign code transformations to begin with, as they can duplicate arbitrary amount of work anyways -- a line of reasoning you may recognize from \cref{sec:lim-lambda-lift}. \Citet{typesafe-sharing} proposed a variant with a more focused primitive |reifyGraph| that turns a knot-tied value into an explicit graph data structure.
+\Citet{observable-sharing} made sharing observable in Haskell, so that they can very elegantly describe logic circuits in Haskell. They extend pure Haskell with operations that one might dismiss as impure (observable object identity),. They point out that this breaks some equational equivalences of Haskell, but argue that this may be acceptable, given that some of these equivalences  are not benign code transformations to begin with, as they can duplicate arbitrary amount of work anyways -- a line of reasoning you may recognize from \cref{sec:lim-lambda-lift}. \Citet{typesafe-sharing} proposed a variant with a more focused primitive |reifyGraph| that turns a knot-tied value into an explicit graph data structure.
 
 Both extensions to Haskell are bolder: They break more laws (even referential transparency!) in order to make the structure of the embedded graph observable, as necessary for their poster use-case. With our library, you \emph{cannot} observe the structure of the graph; you only get your hands on the unique solution to the equations. This means it is unsuitable for some use-cases, but also less disruptive.
 
-We could have implemented our library on top of their observable sharing mechanism, reifying the graph of values as a data structure with explicitly named vertices. We chose to do it differently: Haskell's laziness and the guarantee that an application |x = unsafePerformIO act| is executed at most once makes sharing of the value |x| observable. For each shared value we can thus create a unique mutable cell, and let them refer to each other.
+We could have implemented our library on top of their observable sharing mechanism, reifying the graph of values as a data structure with explicitly named vertices. We chose to do it differently: Haskell's laziness and the guarantee that a binding |let x = unsafePerformIO act| is executed at most once makes sharing of the value |x| observable. For each shared value we can thus create a unique mutable cell, and let them refer to each other.
 The graph is never actually turned into a (Haskell-level) data structure and the cells are not (explicitly) numbered or named; instead the graph is represented by the pointers on the heap, cells are implicitly identified by their object identity, and the bookkeeping data for each cell is stored within its mutable fields. One advantage is that reading of values at multiple nodes of the (implicit) graph will share the solver's work, instead of re-reifying the graph and re-solving it.
 
 Looking beyond Haskell we want to point out CoCaml \citep{cocaml}, which allows the OCaml programmer to observe the structure of knot-tied (coinductive) data, and even process such data while preserving the sharing (so that a |map| over a cyclic list can return a cyclic list).
@@ -901,7 +905,7 @@ For the kind of use-cases presented here, logic programming languages like Prolo
 
 Particularly close to our work, and straddling the functional and logic programming paradigms, is the \emph{Datafun} language \citep{datafun}, a pure and total functional programming language generalizing Datalog, which can declaratively express and compute fixed points of monotone maps on semilattices -- exactly what we are trying to do. Since they tailor their language around this idea, their type system can recognize \emph{monotonic} function definitions
 
-Datafun comes with a denotational semantics, which we lack. In their case it helped that as a total language, they do not have to worry about arbitrary recursion and non-termination, avoiding the complications mentioned in \cref{sec:denotational}.
+Datafun comes with a denotational semantics, which we still struggle with. In their case it helped that as a total language, they do not have to worry about arbitrary recursion and non-termination, avoiding the complications mentioned in \cref{sec:denotational}.
 
 \newcommand{\mfun}{\xrightarrow{\raisebox{-3pt}[0pt][0pt]{+}}}
 
@@ -918,7 +922,7 @@ For example, the reflexive transitive closure from the introduction can be calcu
 
 We see that some functions are defined using explicit combinators for monotonic functions (|mlam|, |mapp|, |fix|) instead of using Haskell's syntax (|\|, juxtaposition, |let|).
 
-Especially the need to thread recursion through a single |fix| is significant here: The problem has to be described as a \emph{single} equation in a suitable partial order. So here, the map of reachable nodes is repeatedly recalculated, until a fixed-point is found.
+Especially the need to thread recursion through a single |fix| is significant here: The problem has to be described as a \emph{single} equation in a suitable partial order. So here, the map of reachable nodes is repeatedly recalculated as a whole, until a fixed-point is found.
 
 Contrast that to our code, where only a single map exists, and serves to declare \emph{multiple} equations in the partial order of sets, using knot-tying. The fixed-point iteration then happens on these sets, which can be significantly more efficient.
 
@@ -935,7 +939,7 @@ The main aim of Hatafun is to explore an embedding of datafun's type system for 
 data ExpF r =  VarF V | LamF V r | AppF r r | ThrowF | CatchF r | LetRecF [(V, r)] r
 data Exp = Fix (ExpF Exp)
 \end{code}
-\item A generic traversal for this data type needs to be written, but only once for all analyses and passes.
+\item A generic traversal for this data type needs to be written. It can then be used for all analyses and passes over |Exp|.
 \item Then our actual analysis/transformation pass can be implemented. The snippet corresponding to \cref{sec:all-values} would be
 \begin{code}
 transferFunctionAlg :: TransferAlgebra RWE
@@ -957,7 +961,7 @@ However, it requires significant refactoring (changing the expression data type,
 
 \section{Conclusion and further work}
 
-We saw that we can extend Haskell with the ability to solve recursive equations involving Boolean and sets, that this extension can be implemented as a library, and that this extension -- arguably -- preserves the nice properties of the language.
+We saw that we can extend Haskell with the ability to solve recursive equations involving Booleans and sets, that this extension can be implemented as a library, and that it -- arguably -- preserves the nice properties of the language.
 
 Of course there is more to be done. On the practical side there are more data types and operations to be included in the library (natural numbers in various ordering, maps). On the theoretical side, a more rigorous, formal approach to the question of whether this is actually safe and pure is worth pursuing, as is finding a denotational description of what the library does.
 
@@ -965,7 +969,6 @@ Of course there is more to be done. On the practical side there are more data ty
 This paper would be worse without the constructive feedback from Sebastian Graf, Claudio Russo, Andreas Lochbihler, Peter Thiemann as well as the anonymous reviewers. We also thank Yihong Zhang and Sebastian Graf for the code snippets in the related work section.
 \end{acks}
 
-\clearpage
 
 \appendix
 \section{The reflexive transitive closure, pedestrian-style}\label{sec:imp}
@@ -981,6 +984,15 @@ rTrans3 g = M.fromList [ (v, S.toList (go S.empty [v])) | v <- M.keys g ]
                     |  otherwise          =  go (S.insert v seen) (g M.! v ++ vs)
 \end{code}
 
+
+\section{Fused program analysis and transformation}\label{sec:proganalexp}
+
+In \cref{sec:all-values} we pointed out that one advantage of our library is that it not only allows defining mutually recursive equations, but (lazily) query that graph as we go. In our example, we rewrite |Catch e| to |e| when the analysis proves that |e| cannot throw. The full code of the analysis and transformation pass is a bit unwieldy, as it returns both the analysis result and the modified code, so we put it into this appendix.
+
+\typeout{(./code/CanThrow3.lhs)} % For latexmk
+%include ./code/CanThrow3.lhs
+
+
 \section{The imperative core's implementation}\label{sec:impcoreimpl}
 
 In \cref{sec:impcore} we assumed a module exporting the following API:
@@ -991,18 +1003,11 @@ defCellInsert  ::  Ord a =>  Cell a -> a -> Cell a ->  IO ()
 getCell        ::            Cell a ->                 IO (Set a)
 \end{code}
 
-\noindent 
-A simple implementation could look like this:
+\goodbreak
 
+A simple implementation could look like this:
 \typeout{(./code/Cell.lhs)} % For latexmk
 %include ./code/Cell.lhs
-
-\section{Fused program analysis and transformation}\label{sec:proganalexp}
-
-In \cref{sec:all-values} we pointed out that one advantage of our library is that it not only allows defining mutually recursive equations, but (lazily) query that graph as we go. In our example, we rewrite |Catch e| to |e| when the analysis proves that |e| cannot throw. The full code of the analysis and transformation pass is a bit unwieldy, as it returns both the analysis result and the modified code, so we put it into this appendix.
-
-\typeout{(./code/CanThrow3.lhs)} % For latexmk
-%include ./code/CanThrow3.lhs
 
 
 \section{The case study in related work}
