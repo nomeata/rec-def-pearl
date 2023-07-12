@@ -11,6 +11,10 @@ stdenv.mkDerivation rec {
          hash = "sha256-b1hH+Wrrqb4Xxi7CXGNeQUo286Lil1Ea9+0ZYVbwe6M=";
        }
     ;}))
+    python3
+    python3Packages.pyyaml
+    python3Packages.requests
+    python3Packages.requests-cache
   ];
   shellHook = ''
       unset SOURCE_DATE_EPOCH
