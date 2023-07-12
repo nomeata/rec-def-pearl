@@ -55,7 +55,7 @@ du -sh image/disk.qcow
 virt-sparsify --inplace image/disk.qcow
 du -sh image/disk.qcow
 
-cp README.md image
+cp README.md LICENSE image
 
 echo "Preparing source tarball"
 
@@ -73,7 +73,9 @@ virt-copy-out -a image/disk.qcow /home/artifact/docs rec-def-artifact
 
 echo "Artifact source created"
 
-echo "Tarring image"
-tar czf rec-def-artifact-image.tar.gz image
 echo "Tarring source"
-tar czf rec-def-artifact-src.tar.gz rec-def-artifact/
+tar czf image/rec-def-artifact-src.tar.gz rec-def-artifact/
+
+echo "Creating single zip file"
+cd image
+zip -r ../rec-def-artifact.zip .
