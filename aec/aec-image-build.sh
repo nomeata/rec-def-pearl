@@ -5,9 +5,9 @@ set -e
 # This prepares the official AEC base image to
 #
 #  * install GHC
-#  * copy the anonymized library over, and extract it
+#  * copy the ~~anonymized~~ library over, and extract it
 #  * build and run the test suite, so that cabal dependencies are available
-#  * create the documentation for this precise (and anonymized) version of the library
+#  * create the documentation for this precise ~~(and anonymized)~~ version of the library
 #  * copy the README.md and example files over
 #
 # It uses virt-customize, which I make available using
@@ -25,10 +25,15 @@ echo "Unpacking base image"
 tar xaf ./base-image.tar.xz
 mv base-image image
 
+if ! [ -e rec-def-0.2.1.tar.gz ]
+then
+  wget https://hackage.haskell.org/package/rec-def-0.2.1/rec-def-0.2.1.tar.gz
+fi
+
 virt-customize \
 	--smp 8 -m 8000 \
 	--install ghc,ghc-doc,cabal-install \
-	--copy-in ../rec-def-0.2.1-anonym.tar.gz:/home/artifact \
+	--copy-in rec-def-0.2.1.tar.gz:/home/artifact \
 	--copy-in aec-image-prepare.sh:/home/artifact \
 	--copy-in README.md:/home/artifact \
 	--copy-in aec-code/trans.hs:/home/artifact \
@@ -59,7 +64,7 @@ rm -rf rec-def-artifact
 mkdir rec-def-artifact
 
 cd rec-def-artifact || exit
-tar xzf ../../rec-def-0.2.1-anonym.tar.gz
+tar xzf ../rec-def-0.2.1.tar.gz
 cd ..
 cp -r aec-code/* rec-def-artifact
 cp README.md aec-image-build.sh aec-image-prepare.sh rec-def-artifact

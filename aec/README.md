@@ -1,5 +1,6 @@
 # ICFP 2023 Artifact
 
+Author: Joachim Breitner <mail@joachim-breitner.de>
 Name: Functional Pearl: More fixpoints!
 
 ## Artifact Instructions
@@ -158,8 +159,7 @@ using `rec-def` (`canThrow2`) succeeds:
     True
 
 The files `dominators.hs` and `minesweeper.hs` contain further example without
-comments; they accompany blog posts that you can google for, if you want (but
-this will deanonymize the authors).
+comments; they accompany blog posts that you can google for, if you want.
 
 The file `program-analysis-hatafun.hs` contains the example from Appendix D.1
 using Hatafun; load it using `ghci program-analysis-hatafun.hs` from the home

@@ -5,7 +5,7 @@ set -e
 cabal update
 cd /home/artifact
 rm -rf rec-def-0.2.1
-tar xavf rec-def-0.2.1-anonym.tar.gz
+tar xavf rec-def-0.2.1.tar.gz
 cd rec-def-0.2.1
 cabal build --write-ghc-environment-files=always
 cabal test
