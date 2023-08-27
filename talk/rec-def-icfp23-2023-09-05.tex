@@ -1,0 +1,946 @@
+\documentclass[xcolor=dvipsnames,aspectratio=169]{beamer}
+%\documentclass{article}
+%\usepackage{beamerarticle}
+
+% % With greetings from Guy Steele
+% \makeatletter
+%     \setlength\beamer@paperwidth{14.00cm}%
+%     \setlength\beamer@paperheight{9.10cm}%
+%     \geometry{papersize={\beamer@paperwidth,\beamer@paperheight}}
+% \makeatother
+
+
+\newlength{\px}
+\setlength{\px}{0.0009765625\paperwidth}
+
+\usetheme{metropolis}
+\usepackage{substrate-background}
+
+
+\setbeamercolor{normal text}{%
+  fg=black,
+}
+
+\usepackage[T1]{fontenc}
+%\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{tikz}
+%\usetikzlibrary{shapes,arrows}
+\usetikzlibrary{positioning,calc,decorations,decorations.pathmorphing,decorations.markings,shapes.geometric,matrix,arrows.meta}
+\usetikzlibrary{overlay-beamer-styles}
+\usetikzlibrary{patterns}
+\usepackage{hyperref}
+\usepackage{mathtools}
+\usepackage{amssymb}
+\usepackage{listings}
+\usepackage{pifont}
+\usepackage{booktabs}
+\usepackage{txfonts}
+\usepackage[normalem]{ulem}
+\renewcommand{\ULthickness}{0.8pt} % was 0.4pt
+\usepackage{array}
+\usepackage[scaled=0.81]{beramono}
+\usepackage{relsize}
+
+\usepackage{multirow}
+\usepackage{bigstrut}
+
+% http://tex.stackexchange.com/a/85578/15107
+\tikzset{onslide/.code args={<#1>#2}{%
+  \only<#1>{\pgfkeysalso{#2}} % \pgfkeysalso doesn't change the path
+}}
+\makeatletter
+\newenvironment<>{btHighlight}[1][]
+{\begin{onlyenv}#2\begingroup\tikzset{bt@Highlight@par/.style={#1}}\begin{lrbox}{\@tempboxa}}
+{\end{lrbox}\bt@HL@box[bt@Highlight@par]{\@tempboxa}\endgroup\end{onlyenv}}
+
+\newcommand<>\btHL[1][]{%
+  \only#2{\begin{btHighlight}[#1]\bgroup\aftergroup\bt@HL@endenv}%
+}
+\def\bt@HL@endenv{%
+  \end{btHighlight}%   
+  \egroup
+}
+\newcommand{\bt@HL@box}[2][]{%
+  \tikz[#1]{%
+    \pgfpathrectangle{\pgfpoint{1pt}{0pt}}{\pgfpoint{\wd #2}{\ht #2}}%
+    \pgfusepath{use as bounding box}%
+    \node[anchor=base west,
+    %fill=orange!30,
+    outer sep=0pt,inner xsep=1pt, inner ysep=0pt, rounded corners=3pt, minimum height=\ht\strutbox+1pt,
+    #1]{\raisebox{1pt}{\strut}\strut\usebox{#2}};
+  }%
+}
+\makeatother
+
+
+
+\lstdefinestyle{Haskell}{language=Haskell
+        ,columns=flexible
+	,basewidth={.365em}
+	,keepspaces=True
+        ,texcl=true
+%        ,escapechar=!
+        ,basicstyle=\ttfamily
+        ,stringstyle=\small\ttfamily
+	,keywordstyle=\color{OliveGreen}\bfseries
+        ,showstringspaces=false
+	,commentstyle=\rmfamily
+         ,literate=
+%                   {->}{$\,\to\,$}2
+%                   {<-}{$\,\leftarrow\,$}2
+%                   {=>}{$\,\Rightarrow\,$}2
+%                   {→}{$\,\to\,$}2
+%                  {\\}{\textlambda}1
+%                  {>>}{{>>}\hspace{-1pt}}2
+%                  {+}{{$+$}}1
+                  {[]}{[\,]\ }1
+%                  {--}{{---\ }}1  would be nice, but prevents detection of comments
+                  {++}{{$+\!\!+$}}1
+%                 {\ .\ }{{$\,\circ\,$}}2
+                  {STRUT}{{\strut}}1 % hack
+                  {DOTS}{{\ldots}}1 % hack
+                  {~}{{$\sim$}}1 % hack
+                  {|>}{{$\triangleright$}}1 % hack
+                  {ghci>}{{\bfseries\color{OliveGreen}$\lambda$>}}2
+		  {PRAGMA}{\{-\#}3
+		  {ENDPRAGMA}{\#-\}}3
+	% Nicer comment separator
+	% ,deletecomment=[l]--%
+	% for RULEs
+        ,deletecomment=[n]{\{-}{-\}}%
+	,keywords={%
+	    case,class,data,default,deriving,do,else,%
+	    foreign,if,import,as,in,infix,infixl,infixr,instance,%
+	    let,forall,letrec,module,newtype,role,of,then,type,where,\_,%
+            nominal,representational,phantom,RULES,%
+	}%
+	,otherkeywords={%
+	    {=>},{::},{->},{<-}%
+            %,{=}%
+        }%
+        }
+\lstdefinestyle{Rules}{
+        ,style=Haskell
+        ,deletecomment=[l]--%
+        ,morekeywords={RULES}%
+        }
+\lstdefinestyle{gen}{
+	frame=lr,framerule=2pt, rulecolor=\color{orange}
+	}
+\lstset{style=Haskell}
+\newcommand{\li}{\lstinline[breaklines=true, breakatwhitespace=true]}
+
+% \pause mit verstecken
+\newcommand{\hide}{\onslide+<+(1)->}
+
+
+
+%% From https://tex.stackexchange.com/a/50251/15107
+\makeatletter
+\newcommand*\Alt{\alt{\Alt@branch0}{\Alt@branch1}}
+
+\newcommand\Alt@branch[3]{%
+  \begingroup
+  \ifbool{mmode}{%
+    \mathchoice{%
+      \Alt@math#1{\displaystyle}{#2}{#3}%
+    }{%
+      \Alt@math#1{\textstyle}{#2}{#3}%
+    }{%
+      \Alt@math#1{\scriptstyle}{#2}{#3}%
+    }{%
+      \Alt@math#1{\scriptscriptstyle}{#2}{#3}%
+    }%
+  }{%
+    \sbox0{#2}%
+    \sbox1{#3}%
+    \Alt@typeset#1%
+  }%
+  \endgroup
+}
+
+\newcommand\Alt@math[4]{%
+  \sbox0{$#2{#3}\m@th$}%
+  \sbox1{$#2{#4}\m@th$}%
+  \Alt@typeset#1%
+}
+
+\newcommand\Alt@typeset[1]{%
+  \ifnumcomp{\wd0}{>}{\wd1}{%
+    \def\setwider   ##1##2{##2##1##2 0}%
+    \def\setnarrower##1##2{##2##1##2 1}%
+  }{%
+    \def\setwider   ##1##2{##2##1##2 1}%
+    \def\setnarrower##1##2{##2##1##2 0}%
+  }%
+  \sbox2{}%
+  \sbox3{}%
+  \setwider2{\wd}%
+  \setwider2{\ht}%
+  \setwider2{\dp}%
+  \setnarrower3{\ht}%
+  \setnarrower3{\dp}%
+  \leavevmode
+  \rlap{\usebox#1}%
+  \usebox2%
+  \usebox3%
+}
+\makeatother
+%% END https://tex.stackexchange.com/a/50251/15107
+
+\title{More Fixpoints! (Functional Pearl)}
+\subtitle{Joachim Breitner}
+\institute{}
+\date{September 5, 2023\\ICFP, Seattle}
+%\logo{\includegraphics{Telekom-Stiftung}}
+%\titlegraphic{\vspace{6cm}\hfill\includegraphics[height=1.2cm]{logo-dark-text.pdf}}
+
+
+\usepackage{textgreek} % \textalpha etc.
+
+%\DeclareTextSymbol\textlambda{T3}{171}           % Lambda
+%\DeclareTextSymbolDefault\textlambda{T3}
+\DeclareUnicodeCharacter{03BB}{\textlambda}
+
+\newcommand{\cmark}{\textcolor{OliveGreen}{\ding{51}}}%
+\newcommand{\xmark}{\textcolor{RedOrange}{\ding{55}}}%
+
+\usepackage{fancybox}
+\makeatletter
+\newenvironment{CenteredBox}{% 
+\begin{Sbox}}{% Save the content in a box
+\end{Sbox}\centerline{\parbox{\wd\@Sbox}{\TheSbox}}}% And output it centered
+\makeatother
+
+\makeatletter
+\newcommand\HUGE{\@setfontsize\Huge{45}{50}}
+\makeatother
+
+
+\newcommand{\shout}[1]{
+\begin{frame}
+\begin{center}
+\HUGE #1
+\end{center}
+\end{frame}
+}
+
+\newcommand{\heart}{\textcolor{red}{\ensuremath\varheartsuit}}
+
+\begin{document}
+
+\frame[plain]{\titlepage}
+
+% https://replicate.com/cjwbw/stable-diffusion-high-resolution
+% seed 2690042245
+% A lazy sloth hanging relaxed from a branch munging happily, Oil paining by Rembrandt
+%\frame[plain]{\includegraphics[width=\linewidth]{sloth}}
+
+%\section{Preaching to the choir}
+
+\shout{I {\heart} Haskell}
+
+\shout{I {\heart} Purity}
+
+\shout{$\texttt{=} \mathrel{\textrm{=}} \mathrm{=}$}
+
+\shout{I {\heart} Laziness}
+
+\begin{frame}[fragile]{I {\heart} Laziness}
+\begin{center}
+\textbf{Laziness allows recursive definitions!}
+\end{center}
+{\pause}
+
+\lstset{language=C}
+\lstset{moredelim=**[is][{\btHL<3>[name=show1, fill=orange,remember picture]}]{@1}{@}}
+\lstset{moredelim=**[is][{\btHL<3>[name=show2, fill=orange,remember picture]}]{@2}{@}}
+\lstset{moredelim=**[is][{\btHL<3>[name=show3, fill=orange,remember picture]}]{@3}{@}}
+\lstset{moredelim=**[is][{\btHL<3>[name=show4, fill=orange,remember picture]}]{@4}{@}}
+\begin{CenteredBox}
+\begin{lstlisting}
+bool @1is_even@(unsigned int n) {
+    if (n == 0) return true;
+    else        return @2is_odd@(n - 1);
+}
+
+bool @3is_odd@(unsigned int n) {
+    if (n == 0) return false;
+    else        return @4is_even@(n - 1);
+}
+\end{lstlisting}
+\end{CenteredBox}
+\only<3>{%
+\tikz[overlay,remember picture]{\draw[->,bend right, color=orange] (show2) to (show3)}%
+\tikz[overlay,remember picture]{\draw[->,bend left, color=orange] (show4) to (show1)}%
+}%
+~
+\end{frame}
+
+\begin{frame}[fragile]{C is lazy, Haskell is lazier}
+\begin{center}
+\begin{tabular}{c|c|c}
+C & Haskell & \phantom{Haskell}\\
+ & & \phantom{+ rec-def}\\
+\hline
+\bigstrut
+functions & functions        & \phantom{functions} \\
+          & \lstinline-data- & \phantom{\lstinline-data-} \\
+          &                  & \phantom{Sets, Booleans} \\
+\end{tabular}
+\end{center}
+\end{frame}
+
+\begin{frame}[fragile]{A famous example}
+\lstset{moredelim=**[is][{\btHL<2>[name=show1, fill=orange,remember picture]}]{@1}{@}}
+\lstset{moredelim=**[is][{\btHL<2>[name=show2, fill=orange,remember picture]}]{@2}{@}}
+\lstset{moredelim=**[is][{\btHL<2>[name=show3, fill=orange,remember picture]}]{@3}{@}}
+\begin{CenteredBox}
+\begin{lstlisting}
+fibs :: [Integer]
+@1fibs@ = 0 : 1 : zipWith (+) @2fibs@ (tail @3fibs@)
+\end{lstlisting}
+\end{CenteredBox}
+\only<2>{%
+\tikz[overlay,remember picture]{\draw[->,bend left, color=orange] (show2.south west) to (show1.south east)}%
+\tikz[overlay,remember picture]{\draw[->,bend left, color=orange] (show3.south west) to (show1.south east)}%
+}%
+~
+\end{frame}
+
+\begin{frame}[fragile,t]{The reflexive transitive closure}
+\begin{lstlisting}
+type Graph = M.Map Int [Int]
+
+rtrans :: Graph -> Graph
+rtrans g = M.map S.toList reaches
+  where
+    reaches :: M.Map Int (S.Set Int)
+    reaches = M.mapWithKey f g
+    f v vs = S.insert v (S.unions [ reaches M.! v' | v' <- vs ]))
+\end{lstlisting}
+\pause
+\begin{center}
+\lstinline-rtrans(-
+\begin{tikzpicture}[anchor=base,baseline]
+\node[draw,circle, inner sep=1pt] (1) at (0,0) {1};
+\node[draw,circle, inner sep=1pt] (2) at (1,0) {2};
+\node[draw,circle, inner sep=1pt] (3) at (2,0) {3};
+\path[draw,->] (1) to [bend right] (3);
+\path[draw,->] (2) to [bend right] (1);
+\path<3>[red,draw,->] (1) to [bend right] (2);
+\end{tikzpicture}
+\lstinline-) = -
+\Alt<3>{$\bot$}{%
+\begin{tikzpicture}[anchor=base,baseline]
+\node[draw,circle, inner sep=1pt] (1) at (0,0) {1};
+\node[draw,circle, inner sep=1pt] (2) at (1,0) {2};
+\node[draw,circle, inner sep=1pt] (3) at (2,0) {3};
+\path[draw,->] (1) to [bend right] (3);
+\path[draw,->] (1) to [loop above] (1);
+\path[draw,->] (2) to [bend right] (1);
+\path[draw,->] (2) to [loop above] (2);
+\path[draw,->] (2) to [bend left] (3);
+\path[draw,->] (3) to [loop above] (3);
+\end{tikzpicture}
+}
+\end{center}
+\end{frame}
+
+\begin{frame}[fragile,t]{What happened here?}
+\begin{lstlisting}
+rtrans $ M.fromList [(1,[2,3]),(2,[1]),(3,[])]
+
+
+rtrans g = M.map S.toList reaches
+  where
+    reaches :: M.Map Int (S.Set Int)
+    reaches = M.mapWithKey f g
+    f v vs = S.insert v (S.unions [ reaches M.! v' | v' <- vs ]))
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile,t]{What happened here?}
+\begin{lstlisting}
+
+
+
+M.map S.toList reaches
+  where
+    reaches :: M.Map Int (S.Set Int)
+    reaches = M.mapWithKey f g
+    f v vs = S.insert v (S.unions [ reaches M.! v' | v' <- vs ]))
+    g = M.fromList [(1,[2,3]),(2,[1]),(3,[])]
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile,t]{What happened here?}
+\begin{lstlisting}
+
+
+
+M.map S.toList reaches
+  where
+    reaches :: M.Map Int (S.Set Int)
+    reaches = M.mapWithKey f (M.fromList [(1,[2,3]),(2,[1]),(3,[])])
+    f v vs = S.insert v (S.unions [ reaches M.! v' | v' <- vs ]))
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile,t]{What happened here?}
+\begin{lstlisting}
+
+
+
+M.map S.toList reaches
+  where
+    reaches :: M.Map Int (S.Set Int)
+    reaches = M.fromList [(1, f 1 [2,3]),(2,f 2 [1]),(3, f 3 [])]
+    f v vs = S.insert v (S.unions [ reaches M.! v' | v' <- vs ]))
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile,t]{What happened here?}
+\begin{lstlisting}
+
+
+
+M.map S.toList reaches
+  where
+    reaches :: M.Map Int (S.Set Int)
+    reaches = M.fromList [(1, s1),(2,f s2),(3, f s3)]
+    f v vs = S.insert v (S.unions [ reaches M.! v' | v' <- vs ]))
+    s1 = f 1 [2,3]
+    s2 = f 2 [1]
+    s3 = f 3 []
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile,t]{What happened here?}
+\begin{lstlisting}
+
+
+
+M.map S.toList reaches
+  where
+    reaches :: M.Map Int (S.Set Int)
+    reaches = M.fromList [(1, s1),(2, s2),(3, s3)]
+
+    s1 = S.insert 1 (S.unions [ reaches M.! v' | v' <- [2,3] ]))
+    s2 = S.insert 2 (S.unions [ reaches M.! v' | v' <- [1] ]))
+    s3 = S.insert 3 (S.unions [ reaches M.! v' | v' <- [] ]))
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile,t]{What happened here?}
+\begin{lstlisting}
+
+
+
+M.map S.toList reaches
+  where
+    reaches :: M.Map Int (S.Set Int)
+    reaches = M.fromList [(1, s1),(2, s2),(3, s3)]
+
+    s1 = S.insert 1 (S.unions [ reaches M.! 2, reaches M.! 3]))
+    s2 = S.insert 2 (S.unions [ reaches M.! 1 ]))
+    s3 = S.insert 3 (S.unions []))
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile,t]{What happened here?}
+\begin{lstlisting}
+
+
+
+M.map S.toList reaches
+  where
+    reaches :: M.Map Int (S.Set Int)
+    reaches = M.fromList [(1, s1),(2, s2),(3, s3)]
+
+    s1 = S.insert 1 (S.unions [ s2, s3 ]))
+    s2 = S.insert 2 (S.unions [ s1 ]))
+    s3 = S.insert 3 (S.unions [ ]))
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile,t]{Let’s step through it}
+\begin{lstlisting}
+
+
+
+M.map S.toList (M.fromList [(1,s1),(2,s2),(3,s3)])
+  where
+
+
+
+    s1 = S.insert 1 (S.unions [ s2, s3 ])
+    s2 = S.insert 2 (S.unions [ s1 ])
+    s3 = S.insert 3 (S.unions [ ]))
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile,t]{Let’s step through it}
+\lstset{moredelim=**[is][{\btHL<2>[name=show1, fill=orange,remember picture]}]{@1}{@}}
+\lstset{moredelim=**[is][{\btHL<2>[name=show2, fill=orange,remember picture]}]{@2}{@}}
+\lstset{moredelim=**[is][{\btHL<2>[name=show3, fill=orange,remember picture]}]{@3}{@}}
+\lstset{moredelim=**[is][{\btHL<2>[name=show4, fill=orange,remember picture]}]{@4}{@}}
+\begin{lstlisting}
+
+
+
+M.fromList [(1, S.toList s1),(2, S.toList s2),(3, S.toList s3)]
+  where
+
+
+
+    @1s1@ = S.insert 1 (@2s2@ `S.union` s3)
+    @3s2@ = S.insert 2 @4s1@
+    s3 = S.fromList [3]
+\end{lstlisting}%
+\only<2>{%
+\tikz[overlay,remember picture]{\draw[->,bend right, color=orange] (show2) to (show3)}%
+\tikz[overlay,remember picture]{\draw[->,bend right, color=orange] (show4) to (show1)}%
+}%
+\end{frame}
+
+\shout{TODO}
+
+\section{This does not work {\ldots} could it?}
+
+\begin{frame}[fragile]{The set API}
+\begin{lstlisting}
+import Data.Set as S
+data Set a
+S.insert  :: Ord a => a -> Set a -> Set a
+S.unions  :: Ord a => [Set a] -> Set a
+\end{lstlisting}
+\pause
+\begin{lstlisting}
+import Data.Recursive.Set as RS
+data RSet a
+RS.insert :: Ord a => a -> RSet a -> RSet a
+RS.unions :: Ord a => [RSet a] -> RSet a
+RS.get    :: RSet a -> Set a
+\end{lstlisting}
+\pause
+\begin{center}
+Let's try!
+\end{center}
+\end{frame}
+
+\iffalse
+\begin{frame}[fragile,t]{Almost the same program}
+\begin{lstlisting}
+rtrans :: Graph -> Graph
+rtrans g = M.map S.toList reaches
+  where
+    reaches = M.mapWithKey f g
+    f v vs = S.insert v (S.unions [ reaches M.! v' | v' <- vs ]))
+\end{lstlisting}
+\end{frame}
+\fi
+
+\section{It worked!\\\small(And there are more examples, but not today\ldots)}
+
+\begin{frame}
+\centering
+\Large
+\url{https://hackage.haskell.org/package/rec-def}
+\end{frame}
+
+\begin{frame}[fragile]{Solves every set of equations!}
+
+\begin{lstlisting}
+RS.mk           :: Set a -> RSet a
+RS.insert       :: Ord a => a -> RSet a -> RSet a
+RS.delete       :: Ord a => a -> RSet a -> RSet a
+RS.union        :: Ord a => RSet a -> RSet a -> RSet a
+RS.intersection :: Ord a => RSet a -> RSet a -> RSet a
+RS.member       :: Ord a => a -> RSet a -> RBool
+RB.&&           :: RBool -> RBool -> RBool
+\end{lstlisting}
+\pause
+\ldots{} because we do not have:
+\begin{lstlisting}
+RS.difference   :: Ord a => RSet a -> RSet a -> RSet a
+RB.not          :: RBool -> RBool
+\end{lstlisting}
+% \pause
+% We could have
+% \begin{lstlisting}
+% RS.map          :: Ord b => (a -> b) -> RSet a -> RSet b
+% \end{lstlisting}
+% but ther are other issues.
+\end{frame}
+
+
+
+\section{So how does it work?}
+
+\begin{frame}[fragile]{Breaking down the problem}
+\begin{enumerate}
+\item A monadic “propagator”\\
+(declare cells, declare relationships, solves, read values)
+\item The pure wrapping
+\item Some issues we gloss over today
+\end{enumerate}
+
+\pause
+
+Our (simplified) goal:
+
+\begin{lstlisting}
+data RSet a
+insert :: a -> RSet a -> RSet a
+get    :: RSet a -> Set a
+\end{lstlisting}
+
+\end{frame}
+
+\begin{frame}[fragile]{The propagator -- the API}
+\begin{lstlisting}[basicstyle=\ttfamily\relscale{0.95}]
+data Cell a
+newC    :: IO (Cell a)
+
+insertC :: Ord a => Cell a -> a -> Cell a -> IO ()
+
+
+
+
+
+
+
+
+
+getC    :: Cell a -> IO (Set a)
+STRUT
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]{The propagator -- a naive(!) implementation}
+\begin{lstlisting}[basicstyle=\ttfamily\relscale{0.95}]
+data Cell a = C (IORef (Set a)) (IORef [IO ()])
+newC    :: IO (Cell a)
+newC = C <$> newIORef S.empty <*> newIORef []
+insertC :: Ord a => Cell a -> a -> Cell a -> IO ()
+insertC (C s0 ws0) x (C s1 ws1) = do
+  let update = do
+        new <- S.insert x <$> readIORef s1
+        old <- readIORef s0
+        unless (old == new) $ do
+          writeIORef s0 new
+          readIORef ws0 >>= sequence_
+  modifyIORef ws1 (update :)
+  update
+getC    :: Cell a -> IO (Set a)
+getC (C s1 _) = readIORef s1
+\end{lstlisting}
+\end{frame}
+
+
+\begin{frame}[fragile]{The pure wrapper -- the API}
+\begin{lstlisting}
+data RSet a
+
+insert :: Ord a => a -> RSet a -> RSet a
+
+
+
+
+
+
+
+
+get :: RSet a -> Set a
+STRUT
+STRUT
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]{The pure wrapper -- let's get dirty}
+\begin{center}
+\lstinline!unsafePerformIO :: IO a -> a!
+\end{center}
+\end{frame}
+
+\begin{frame}[fragile]{A thunking data structure}
+\begin{lstlisting}
+data DoOnce
+
+later :: IO () -> IO DoOnce
+
+
+doNow :: DoOnce -> IO ()
+STRUT
+STRUT
+STRUT
+STRUT
+STRUT
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]{A thunking data structure}
+\begin{lstlisting}
+data DoOnce = DoOnce (IO ()) (IORef Bool)
+
+later :: IO () -> IO DoOnce
+later act = DoOnce act <$> newIORef False
+
+doNow :: DoOnce -> IO ()
+doNow (DoOnce act done) = do
+    is_done <- readIORef done
+    unless is_done $ do
+        writeIORef done True
+        act
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]{The pure wrapper -- a naive(!) implementation}
+\begin{lstlisting}
+data RSet a = RSet (Cell a) DoOnce
+
+insert :: Ord a => a -> RSet a -> RSet a
+insert x r2 = unsafePerformIO $ do
+  c1 <- newC
+  todo <- later $ do
+      let (RSet c2 todo2) = r2
+      insertC c1 x c2
+      doNow todo2
+  return (RSet c1 todo)
+
+get :: RSet a -> Set a
+get (RSet c todo) = unsafePerformIO $ do
+  doNow todo >> getC c
+\end{lstlisting}
+\end{frame}
+
+
+
+\begin{frame}[fragile]{Simplified for your viewing pleasure}
+\begin{itemize}
+\item Other data types\\
+\lstinline-RBool- with \lstinline!(RB.&&)! etc.
+\item Mixing different data types\\
+\lstinline!RS.member :: Ord a => a -> RSet a -> RBool!
+\item Concurrency and reentrancy issues (\lstinline-unsafePerformIO-!)
+\item Space leaks (watchers!)
+\end{itemize}
+\end{frame}
+
+
+\iffalse
+\begin{frame}[fragile]{Not \emph{all} equations}
+Ok:
+\begin{lstlisting}
+let b = b RB.&& b
+let s = S.insert 42 s
+let s = S.singleton 42 `RS.union` s
+\end{lstlisting}
+
+\pause
+
+Not ok:
+\begin{lstlisting}
+let b = RB.not b
+let s = RS.singleton 42 `RS.difference` s
+\end{lstlisting}
+\end{frame}
+\fi
+
+\section{Is this still Haskell?}
+
+\begin{frame}{Queasy about unsafePerformIO?}
+\begin{quote}
+that is why the function
+is unsafe.\\
+However “unsafe” is not the same as “wrong”. It simply means that
+the programmer, not the compiler, must undertake the proof obligation that the
+program’s semantics is unaffected [\ldots]
+\end{quote}
+\footnotesize
+\raggedleft
+“Stretching the Storage Manager: Weak Pointers and Stable Names in Haskell”\\
+Simon Peyton Jones, Simon Marlow, and Conal Elliott
+\end{frame}
+
+\begin{frame}{Is this still Haskell?}
+\begin{itemize}
+\item Type safety \cmark
+\item Independence of evaluation order \cmark\\
+{\footnotesize (At least if the \emph{ascending chain conditions} holds, else unclear.)}
+\item Equational reasoning \cmark\\
+\lstinline-let x = E1[x] in E2[x]- $\quad \equiv\quad $ \lstinline-let x = E1[x] in E2[E1[x]]-
+\lstinline-let x = E1[x] in E2[x]- $\quad \equiv\quad $ \lstinline-let x = E1[y]; y = E1[x] in E2[x]-
+\pause
+\item Lambda lifting \xmark \\
+\lstinline-let x = E1[x,e] in E2[x]- $\quad \not\equiv\quad $ \lstinline-let x y = E1[x y,y] in E2[x e]-
+Transformations that break \emph{sharing} can prevent termination!\\
+{\footnotesize (So far: can only increase costs, but otherwise unobservable)}
+\end{itemize}
+\pause
+\begin{center}
+\ldots and how to prove it?
+\end{center}
+\end{frame}
+
+\begin{frame}{Summary}
+\begin{itemize}
+\item Laziness is key to describing recursive problems declaratively.
+\item Let us allow more partial orders than Haskell’s “normal one”!
+\item Open question: Is this still pure, and how to prove it?
+\item Not discussed today:\\
+The \lstinline-let x = x- problem, thread safety, avoiding leaks, performance.
+\end{itemize}
+
+\begin{center}
+\textbf{Thank you for your attention!}
+\end{center}
+\end{frame}
+
+\section{Backup slides}
+\section{Theory}
+\begin{frame}[fragile]{All involved functions must be \emph{monotone}}
+For sets:
+\begin{center}
+If $s_1 \subseteq s_2$ then $f(s_1) \subseteq f(s_2)$.
+\end{center}
+
+For \lstinline-Bool-:
+\begin{center}
+If $b_1 \le b_2$ then $f(b_1) \le f(b_2)$.
+\end{center}
+where \lstinline-False- $\le$ \lstinline-True-.
+
+\end{frame}
+
+\begin{frame}{Finding the least fixed-point}
+Let $X$ be partially ordered by $\sqsubseteq$, $\bot\in X$ be its least element, and $f \colon X \to X$ be a continuous function (i.e. $x \sqsubseteq y \implies f(x) \sqsubseteq f(y)$).
+
+\pause
+
+Then the sequence
+\[
+\bot \sqsubseteq f(\bot) \sqsubseteq f(f(\bot)) \sqsubseteq \ldots
+\]
+either diverges (all elements are different), or eventually finds a least fixed-point $x\in X$ of $f$, where
+\[
+x = f(x).
+\]
+\pause
+If $X$ has the \emph{Ascending Chain Condition} (i.e. no infinite chain $x_0 \sqsubset x_1 \sqsubset \ldots$ exists), then the fixed-point will always be found.
+\end{frame}
+
+\section{It worked!\\Let's try another example\ldots}
+
+\begin{frame}[fragile]{A small programming language}
+\begin{lstlisting}
+type Var = String
+
+data Exp
+  = Var Var
+  | Lam Var Exp
+  | App Exp Exp
+  | Throw
+  | Catch Exp
+  | Let Var Exp Exp
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]{A small analysis}
+\begin{lstlisting}
+canThrow1 :: Exp -> Bool
+canThrow1 = go M.empty where
+    go :: M.Map Var Bool -> Exp -> Bool
+    go env (Var v)       = env M.! v
+    go env Throw         = True
+    go env (Catch e)     = False
+    go env (Lam v e)     = go (M.insert v False env) e
+    go env (App e1 e2)   = go env e1 || go env e2
+    go env (Let v e1 e2) = go env' e2 where
+        env_bind = M.fromList [ (v, go env e1) ]
+        env' = M.union env_bind env
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]{Let's add recursion}
+\begin{lstlisting}
+data Exp
+  ...
+  | LetRec [(Var, Exp)] Exp
+\end{lstlisting}
+\pause 
+\lstset{moredelim=**[is][{\btHL<3>[name=show, fill=orange,remember picture]}]{@}{@}}
+\begin{lstlisting}
+canThrow1 :: Exp -> Bool
+canThrow1 = go M.empty where
+    go :: M.Map Var Bool -> Exp -> Bool
+    ...
+    go env (LetRec binds e) = go env' e where
+        env_bind = M.fromList [ (v, go @env'@ e) | (v,e) <- binds ]
+        env' = M.union env_bind env
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile,t]{Again, this fails with cyclic values}
+\begin{lstlisting}
+ghci> someVal = Lam "y" (Var "y")
+ghci> prog = LetRec [("x", App (Var "x") someVal), ("y", Throw)] (Var "x")
+ghci> canThrow1 prog
+^CInterrupted.
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile,t]{Data.Recursive.Bool to the rescue!}
+\begin{lstlisting}
+ghci> someVal = Lam "y" (Var "y")
+ghci> prog = LetRec [("x", App (Var "x") someVal), ("y", Throw)] (Var "x")
+ghci> canThrow1 prog
+^CInterrupted.
+ghci> canThrow2 prog
+False
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile,t]{Data.Recursive.Bool API}
+\begin{lstlisting}
+import Data.Recursive.Bool as RB
+
+RB.true  :: RBool
+RB.false :: RBool
+RB.&&    :: RBool -> RBool -> RBool
+RB.||    :: RBool -> RBool -> RBool
+RB.and   :: [RBool] -> RBool
+RB.or    :: [RBool] -> RBool
+DOTS
+RB.get   :: RBool -> Bool
+\end{lstlisting}
+\end{frame}
+
+\newsavebox{\canThrowiiBox}
+\begin{lrbox}{\canThrowiiBox}%
+\begin{lstlisting}
+canThrow2 :: Exp -> Bool
+canThrow2 = RB.get . go M.empty where
+    go :: M.Map Var RBool -> Exp -> RBool
+    go env (Var v)       = env M.! v
+    go env Throw         = RB.false
+    go env (Catch e)     = RB.true
+    go env (Lam v e)     = go (M.insert v RB.false env) e
+    go env (App e1 e2)   = go env e1 RB.|| go env e2
+    go env (Let v e1 e2) = go env' e2 where
+        env_bind = M.singleton v (go env e1)
+        env' = M.union env_bind env
+    go env (LetRec binds e) = go env' e where
+        env_bind = M.fromList [ (v, go env' e) | (v,e) <- binds ]
+        env' = M.union env_bind env
+\end{lstlisting}
+\end{lrbox}
+
+\begin{frame}[fragile,t]{JFR: The full code}
+\scalebox{1}{\usebox{\canThrowiiBox}}
+\end{frame}
+
+\end{document}
+
