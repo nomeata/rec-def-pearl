@@ -14,6 +14,7 @@ rtrans g = M.map S.toList reaches
 
     f v vs = S.insert v (S.unions [ reaches M.! v' | v' <- vs ])
 
+
 graph1 :: Graph
 graph1 = M.fromList [(1,[3]),(2,[1]),(3,[])]
 

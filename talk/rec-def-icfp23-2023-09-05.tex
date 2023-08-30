@@ -9,13 +9,8 @@
 %     \geometry{papersize={\beamer@paperwidth,\beamer@paperheight}}
 % \makeatother
 
-
-\newlength{\px}
-\setlength{\px}{0.0009765625\paperwidth}
-
 \usetheme{metropolis}
 \usepackage{substrate-background}
-
 
 \setbeamercolor{normal text}{%
   fg=black,
@@ -33,7 +28,6 @@
 \usepackage{mathtools}
 \usepackage{amssymb}
 \usepackage{listings}
-\usepackage{pifont}
 \usepackage{booktabs}
 \usepackage{txfonts}
 \usepackage[normalem]{ulem}
@@ -85,7 +79,7 @@
         ,stringstyle=\small\ttfamily
 	,keywordstyle=\color{OliveGreen}\bfseries
         ,showstringspaces=false
-	,commentstyle=\rmfamily
+	,commentstyle=\sffamily
          ,literate=
 %                   {->}{$\,\to\,$}2
 %                   {<-}{$\,\leftarrow\,$}2
@@ -189,13 +183,6 @@
 \makeatother
 %% END https://tex.stackexchange.com/a/50251/15107
 
-\title{More Fixpoints! (Functional Pearl)}
-\subtitle{Joachim Breitner}
-\institute{}
-\date{September 5, 2023\\ICFP, Seattle}
-%\logo{\includegraphics{Telekom-Stiftung}}
-%\titlegraphic{\vspace{6cm}\hfill\includegraphics[height=1.2cm]{logo-dark-text.pdf}}
-
 
 \usepackage{textgreek} % \textalpha etc.
 
@@ -203,6 +190,7 @@
 %\DeclareTextSymbolDefault\textlambda{T3}
 \DeclareUnicodeCharacter{03BB}{\textlambda}
 
+\usepackage{pifont}
 \newcommand{\cmark}{\textcolor{OliveGreen}{\ding{51}}}%
 \newcommand{\xmark}{\textcolor{RedOrange}{\ding{55}}}%
 
@@ -226,7 +214,14 @@
 \end{frame}
 }
 
-\newcommand{\heart}{\textcolor{red}{\ensuremath\varheartsuit}}
+\newcommand{\heart}{\textcolor{red}{\scalebox{1.6}{\ensuremath\varheartsuit}}}
+
+\title{More Fixpoints! (Functional Pearl)}
+\subtitle{Joachim Breitner}
+\institute{}
+\date{September 5, 2023\\ICFP, Seattle}
+%\logo{\includegraphics{Telekom-Stiftung}}
+%\titlegraphic{\vspace{6cm}\hfill\includegraphics[height=1.2cm]{logo-dark-text.pdf}}
 
 \begin{document}
 
@@ -247,10 +242,8 @@
 
 \shout{I {\heart} Laziness}
 
-\begin{frame}[fragile]{I {\heart} Laziness}
-\begin{center}
-\textbf{Laziness allows recursive definitions!}
-\end{center}
+\begin{frame}[fragile]{Laziness allows recursive definitions}
+\strut
 {\pause}
 
 \lstset{language=C}
@@ -278,7 +271,7 @@ bool @3is_odd@(unsigned int n) {
 ~
 \end{frame}
 
-\begin{frame}[fragile]{C is lazy, Haskell is lazier}
+\begin{frame}[fragile]{C is lazy, but Haskell is lazier}
 \begin{center}
 \begin{tabular}{c|c|c}
 C & Haskell & \phantom{Haskell}\\
@@ -292,7 +285,7 @@ functions & functions        & \phantom{functions} \\
 \end{center}
 \end{frame}
 
-\begin{frame}[fragile]{A famous example}
+\begin{frame}[fragile]{A famous tied knot}
 \lstset{moredelim=**[is][{\btHL<2>[name=show1, fill=orange,remember picture]}]{@1}{@}}
 \lstset{moredelim=**[is][{\btHL<2>[name=show2, fill=orange,remember picture]}]{@2}{@}}
 \lstset{moredelim=**[is][{\btHL<2>[name=show3, fill=orange,remember picture]}]{@3}{@}}
@@ -329,7 +322,7 @@ rtrans g = M.map S.toList reaches
 \node[draw,circle, inner sep=1pt] (3) at (2,0) {3};
 \path[draw,->] (1) to [bend right] (3);
 \path[draw,->] (2) to [bend right] (1);
-\path<3>[red,draw,->] (1) to [bend right] (2);
+\path<3>[thick,red,draw,->] (1) to [bend right] (2);
 \end{tikzpicture}
 \lstinline-) = -
 \Alt<3>{$\bot$}{%
@@ -357,7 +350,7 @@ rtrans g = M.map S.toList reaches
   where
     reaches :: M.Map Int (S.Set Int)
     reaches = M.mapWithKey f g
-    f v vs = S.insert v (S.unions [ reaches M.! v' | v' <- vs ]))
+    f v vs = S.insert v (S.unions [ reaches M.! v' | v' <- vs ])
 \end{lstlisting}
 \end{frame}
 
@@ -370,7 +363,7 @@ M.map S.toList reaches
   where
     reaches :: M.Map Int (S.Set Int)
     reaches = M.mapWithKey f g
-    f v vs = S.insert v (S.unions [ reaches M.! v' | v' <- vs ]))
+    f v vs = S.insert v (S.unions [ reaches M.! v' | v' <- vs ])
     g = M.fromList [(1,[2,3]),(2,[1]),(3,[])]
 \end{lstlisting}
 \end{frame}
@@ -384,7 +377,7 @@ M.map S.toList reaches
   where
     reaches :: M.Map Int (S.Set Int)
     reaches = M.mapWithKey f (M.fromList [(1,[2,3]),(2,[1]),(3,[])])
-    f v vs = S.insert v (S.unions [ reaches M.! v' | v' <- vs ]))
+    f v vs = S.insert v (S.unions [ reaches M.! v' | v' <- vs ])
 \end{lstlisting}
 \end{frame}
 
@@ -397,7 +390,7 @@ M.map S.toList reaches
   where
     reaches :: M.Map Int (S.Set Int)
     reaches = M.fromList [(1, f 1 [2,3]),(2,f 2 [1]),(3, f 3 [])]
-    f v vs = S.insert v (S.unions [ reaches M.! v' | v' <- vs ]))
+    f v vs = S.insert v (S.unions [ reaches M.! v' | v' <- vs ])
 \end{lstlisting}
 \end{frame}
 
@@ -410,7 +403,7 @@ M.map S.toList reaches
   where
     reaches :: M.Map Int (S.Set Int)
     reaches = M.fromList [(1, s1),(2,f s2),(3, f s3)]
-    f v vs = S.insert v (S.unions [ reaches M.! v' | v' <- vs ]))
+    f v vs = S.insert v (S.unions [ reaches M.! v' | v' <- vs ])
     s1 = f 1 [2,3]
     s2 = f 2 [1]
     s3 = f 3 []
@@ -443,9 +436,9 @@ M.map S.toList reaches
     reaches :: M.Map Int (S.Set Int)
     reaches = M.fromList [(1, s1),(2, s2),(3, s3)]
 
-    s1 = S.insert 1 (S.unions [ reaches M.! 2, reaches M.! 3]))
-    s2 = S.insert 2 (S.unions [ reaches M.! 1 ]))
-    s3 = S.insert 3 (S.unions []))
+    s1 = S.insert 1 (S.unions [ reaches M.! 2, reaches M.! 3])
+    s2 = S.insert 2 (S.unions [ reaches M.! 1 ])
+    s3 = S.insert 3 (S.unions [])
 \end{lstlisting}
 \end{frame}
 
@@ -459,13 +452,16 @@ M.map S.toList reaches
     reaches :: M.Map Int (S.Set Int)
     reaches = M.fromList [(1, s1),(2, s2),(3, s3)]
 
-    s1 = S.insert 1 (S.unions [ s2, s3 ]))
-    s2 = S.insert 2 (S.unions [ s1 ]))
-    s3 = S.insert 3 (S.unions [ ]))
+    s1 = S.insert 1 (S.unions [ s2, s3 ])
+    s2 = S.insert 2 (S.unions [ s1 ])
+    s3 = S.insert 3 (S.unions [ ])
 \end{lstlisting}
 \end{frame}
 
-\begin{frame}[fragile,t]{Let’s step through it}
+\begin{frame}[fragile,t]{What happened here?}
+\lstset{moredelim=**[is][{\btHL<2>[name=show1, fill=orange,remember picture]}]{@1}{@}} \lstset{moredelim=**[is][{\btHL<2>[name=show2, fill=orange,remember picture]}]{@2}{@}}
+\lstset{moredelim=**[is][{\btHL<2>[name=show3, fill=orange,remember picture]}]{@3}{@}}
+\lstset{moredelim=**[is][{\btHL<2>[name=show4, fill=orange,remember picture]}]{@4}{@}}
 \begin{lstlisting}
 
 
@@ -475,29 +471,9 @@ M.map S.toList (M.fromList [(1,s1),(2,s2),(3,s3)])
 
 
 
-    s1 = S.insert 1 (S.unions [ s2, s3 ])
-    s2 = S.insert 2 (S.unions [ s1 ])
+    @1s1@ = S.insert 1 (S.unions [ @2s2@, s3 ])
+    @3s2@ = S.insert 2 (S.unions [ @4s1@ ])
     s3 = S.insert 3 (S.unions [ ]))
-\end{lstlisting}
-\end{frame}
-
-\begin{frame}[fragile,t]{Let’s step through it}
-\lstset{moredelim=**[is][{\btHL<2>[name=show1, fill=orange,remember picture]}]{@1}{@}}
-\lstset{moredelim=**[is][{\btHL<2>[name=show2, fill=orange,remember picture]}]{@2}{@}}
-\lstset{moredelim=**[is][{\btHL<2>[name=show3, fill=orange,remember picture]}]{@3}{@}}
-\lstset{moredelim=**[is][{\btHL<2>[name=show4, fill=orange,remember picture]}]{@4}{@}}
-\begin{lstlisting}
-
-
-
-M.fromList [(1, S.toList s1),(2, S.toList s2),(3, S.toList s3)]
-  where
-
-
-
-    @1s1@ = S.insert 1 (@2s2@ `S.union` s3)
-    @3s2@ = S.insert 2 @4s1@
-    s3 = S.fromList [3]
 \end{lstlisting}%
 \only<2>{%
 \tikz[overlay,remember picture]{\draw[->,bend right, color=orange] (show2) to (show3)}%
@@ -505,23 +481,19 @@ M.fromList [(1, S.toList s1),(2, S.toList s2),(3, S.toList s3)]
 }%
 \end{frame}
 
-\shout{TODO}
-
-\section{This does not work {\ldots} could it?}
-
 \begin{frame}[fragile]{The set API}
 \begin{lstlisting}
 import Data.Set as S
 data Set a
-S.insert  :: Ord a => a -> Set a -> Set a
-S.unions  :: Ord a => [Set a] -> Set a
+S.insert  :: Ord a => a -> Set a -> Set a    -- too strict
+S.unions  :: Ord a => [Set a] -> Set a       -- too strict
 \end{lstlisting}
 \pause
 \begin{lstlisting}
-import Data.Recursive.Set as RS
+import Data.Recursive.Set as RS              -- from rec-def
 data RSet a
-RS.insert :: Ord a => a -> RSet a -> RSet a
-RS.unions :: Ord a => [RSet a] -> RSet a
+RS.insert :: Ord a => a -> RSet a -> RSet a  -- lazy enough
+RS.unions :: Ord a => [RSet a] -> RSet a     -- lazy enough
 RS.get    :: RSet a -> Set a
 \end{lstlisting}
 \pause
@@ -530,28 +502,156 @@ Let's try!
 \end{center}
 \end{frame}
 
-\iffalse
-\begin{frame}[fragile,t]{Almost the same program}
+\begin{frame}[fragile,t]{The reflexive transitive closure, using \phantom{R}Set}
 \begin{lstlisting}
+
+
 rtrans :: Graph -> Graph
-rtrans g = M.map S.toList reaches
+rtrans g = M.map (S.toList         ) reaches
   where
+    reaches :: M.Map Int (  S.Set Int)
     reaches = M.mapWithKey f g
-    f v vs = S.insert v (S.unions [ reaches M.! v' | v' <- vs ]))
+    f v vs =  S.insert v ( S.unions [ reaches M.! v' | v' <- vs ]))
 \end{lstlisting}
 \end{frame}
-\fi
 
-\section{It worked!\\\small(And there are more examples, but not today\ldots)}
+\begin{frame}[fragile,t]{The reflexive transitive closure, using RSet}
+\lstset{moredelim=**[is][{\btHL<1>[name=show4, opacity=.8, text opacity=1, fill=yellow,remember picture]}]{@}{@}}
+\begin{lstlisting}
+import qualified RSet as RS
 
-\begin{frame}
-\centering
-\Large
-\url{https://hackage.haskell.org/package/rec-def}
+rtrans :: Graph -> Graph
+rtrans g = M.map (S.toList@ . RS.get@) reaches
+  where
+    reaches :: M.Map Int (@RS.R@Set Int)
+    reaches = M.mapWithKey f g
+    f v vs = @RS@.insert v (@RS@.unions [ reaches M.! v' | v' <- vs ]))
+\end{lstlisting}
 \end{frame}
 
-\begin{frame}[fragile]{Solves every set of equations!}
+\begin{frame}[fragile]{Is this still kosher?}
+\begin{itemize}
+\item The library finds a solution to the equation. Given
+\begin{lstlisting}
+let s1 = RS.insert 1 (RS.unions [ s2, s3 ])
+\end{lstlisting}
+we get
+\begin{lstlisting}
+RS.get s1 == S.insert 1 (S.unions [ RS.get s2, RS.get s3 ])
+\end{lstlisting}
+Equational reasoning still works!
+\item Sets (with monotonic functions) are nice:
 
+\medskip
+
+Unique least solution always exists
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{My main claim}
+\begin{center}
+\Large
+When sets of equations have a unique solution,
+
+\bigskip
+
+they should work as recursive definitions.
+\end{center}
+\end{frame}
+
+
+\begin{frame}[fragile]{C is lazy, but Haskell is lazier, could be even more lazy}
+\begin{center}
+\begin{tabular}{c|c|c}
+C & Haskell & {Haskell}\\
+ & & {(but more lazy)}\\
+\hline
+\bigstrut
+functions & functions        & {functions} \\
+          & \lstinline-data- & {\lstinline-data-} \\
+          &                  & \lstinline-RSet- \\
+	  &                  & \lstinline-RBool- \\
+          &                  & $\mathbb{N}$ \\
+          &                  & grammars \\
+          &                  & \ldots \\
+\end{tabular}
+\end{center}
+\end{frame}
+
+\begin{frame}[fragile]{What's the gain?}
+\begin{itemize}
+\item More problems solved by pure, declarative code
+\item Separates declaration and solving
+\item Avoids fixed-point combinators or monads
+\item Particularly tricky with combinators:
+\begin{itemize}
+\item Mutual recursion
+\item Mutual recursion at different types
+\item Many variables declared afar, but solved in one go
+\end{itemize}
+\end{itemize}
+\pause
+\bigskip
+\begin{center}
+\lstinline-let- is best to describe recursive equations
+\end{center}
+\end{frame}
+
+\begin{frame}[fragile]{What's the cost?}
+\begin{itemize}
+\item Just as mind-bending as tying-the-knot techniques for sharing
+\item Only applicable in domains where unique solution exists and is computable
+\item Lamda-lifting can affect termination:
+\begin{lstlisting}
+ghci> let s1    = RS.insert 42  s1     in RS.get  s1
+fromList [42]
+ghci> let s1 () = RS.insert 42 (s1 ()) in RS.get (s1 ())
+fromList ^CInterrupted.
+\end{lstlisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}{What's in the paper?}
+\begin{itemize}
+\item Larger use-case: program analysis
+\item Same type, different orders
+\item Implementation insights:\\
+\begin{itemize}
+\item From imperative propagator libraries to pure API
+\item \lstinline-unsafePerformIO-
+\item Sharing as a source of uniqueness
+\item Concurrency, reentrancy and space leak concerns
+\item The \lstinline-let x = x- issue
+\end{itemize}
+\item Denotational semantics (WIP draft)
+\item Try it at \url{https://hackage.haskell.org/package/rec-def}
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Thank you for your attention!}
+\begin{center}
+{\Huge
+$\texttt{=} \mathrel{\textrm{=}} \mathrm{=}$
+
+}
+\vfill
+\hrule
+\vfill
+\Large
+When sets of equations have a unique solution,
+
+\bigskip
+
+they should work as recursive definitions.
+\vfill
+\end{center}
+\end{frame}
+
+\appendix
+\section{Backup slides}
+
+\begin{frame}[fragile]{API excerpt}
+We have
 \begin{lstlisting}
 RS.mk           :: Set a -> RSet a
 RS.insert       :: Ord a => a -> RSet a -> RSet a
@@ -561,18 +661,12 @@ RS.intersection :: Ord a => RSet a -> RSet a -> RSet a
 RS.member       :: Ord a => a -> RSet a -> RBool
 RB.&&           :: RBool -> RBool -> RBool
 \end{lstlisting}
-\pause
-\ldots{} because we do not have:
+We do not have
 \begin{lstlisting}
-RS.difference   :: Ord a => RSet a -> RSet a -> RSet a
-RB.not          :: RBool -> RBool
+RS.map          :: Ord b => (a -> b) -> RSet a -> RSet b  -- would be okish
+RS.difference   :: Ord a => RSet a -> RSet a -> RSet a    -- would be bad
+RB.not          :: RBool -> RBool                         -- would be bad
 \end{lstlisting}
-% \pause
-% We could have
-% \begin{lstlisting}
-% RS.map          :: Ord b => (a -> b) -> RSet a -> RSet b
-% \end{lstlisting}
-% but ther are other issues.
 \end{frame}
 
 
@@ -785,21 +879,6 @@ Transformations that break \emph{sharing} can prevent termination!\\
 \end{center}
 \end{frame}
 
-\begin{frame}{Summary}
-\begin{itemize}
-\item Laziness is key to describing recursive problems declaratively.
-\item Let us allow more partial orders than Haskell’s “normal one”!
-\item Open question: Is this still pure, and how to prove it?
-\item Not discussed today:\\
-The \lstinline-let x = x- problem, thread safety, avoiding leaks, performance.
-\end{itemize}
-
-\begin{center}
-\textbf{Thank you for your attention!}
-\end{center}
-\end{frame}
-
-\section{Backup slides}
 \section{Theory}
 \begin{frame}[fragile]{All involved functions must be \emph{monotone}}
 For sets:
@@ -832,7 +911,7 @@ x = f(x).
 If $X$ has the \emph{Ascending Chain Condition} (i.e. no infinite chain $x_0 \sqsubset x_1 \sqsubset \ldots$ exists), then the fixed-point will always be found.
 \end{frame}
 
-\section{It worked!\\Let's try another example\ldots}
+\section{A program analysis example}
 
 \begin{frame}[fragile]{A small programming language}
 \begin{lstlisting}
@@ -892,17 +971,6 @@ ghci> canThrow1 prog
 \end{lstlisting}
 \end{frame}
 
-\begin{frame}[fragile,t]{Data.Recursive.Bool to the rescue!}
-\begin{lstlisting}
-ghci> someVal = Lam "y" (Var "y")
-ghci> prog = LetRec [("x", App (Var "x") someVal), ("y", Throw)] (Var "x")
-ghci> canThrow1 prog
-^CInterrupted.
-ghci> canThrow2 prog
-False
-\end{lstlisting}
-\end{frame}
-
 \begin{frame}[fragile,t]{Data.Recursive.Bool API}
 \begin{lstlisting}
 import Data.Recursive.Bool as RB
@@ -938,9 +1006,21 @@ canThrow2 = RB.get . go M.empty where
 \end{lstlisting}
 \end{lrbox}
 
-\begin{frame}[fragile,t]{JFR: The full code}
+\begin{frame}[fragile,t]
 \scalebox{1}{\usebox{\canThrowiiBox}}
 \end{frame}
+
+\begin{frame}[fragile,t]{Now it works!}
+\begin{lstlisting}
+ghci> someVal = Lam "y" (Var "y")
+ghci> prog = LetRec [("x", App (Var "x") someVal), ("y", Throw)] (Var "x")
+ghci> canThrow1 prog
+^CInterrupted.
+ghci> canThrow2 prog
+False
+\end{lstlisting}
+\end{frame}
+
 
 \end{document}
 
