@@ -322,10 +322,10 @@ rtrans g = M.map S.toList reaches
 \node[draw,circle, inner sep=1pt] (3) at (2,0) {3};
 \path[draw,->] (1) to [bend right] (3);
 \path[draw,->] (2) to [bend right] (1);
-\path<3>[thick,red,draw,->] (1) to [bend right] (2);
+\path<3->[thick,red,draw,->] (1) to [bend right] (2);
 \end{tikzpicture}
 \lstinline-) = -
-\Alt<3>{$\bot$}{%
+\Alt<3->{\visible<4->{$\bot$}}{%
 \begin{tikzpicture}[anchor=base,baseline]
 \node[draw,circle, inner sep=1pt] (1) at (0,0) {1};
 \node[draw,circle, inner sep=1pt] (2) at (1,0) {2};
@@ -402,7 +402,7 @@ M.map S.toList reaches
 M.map S.toList reaches
   where
     reaches :: M.Map Int (S.Set Int)
-    reaches = M.fromList [(1, s1),(2,f s2),(3, f s3)]
+    reaches = M.fromList [(1, s1),(2, s2),(3, s3)]
     f v vs = S.insert v (S.unions [ reaches M.! v' | v' <- vs ])
     s1 = f 1 [2,3]
     s2 = f 2 [1]
@@ -496,10 +496,6 @@ RS.insert :: Ord a => a -> RSet a -> RSet a  -- lazy enough
 RS.unions :: Ord a => [RSet a] -> RSet a     -- lazy enough
 RS.get    :: RSet a -> Set a
 \end{lstlisting}
-\pause
-\begin{center}
-Let's try!
-\end{center}
 \end{frame}
 
 \begin{frame}[fragile,t]{The reflexive transitive closure, using \phantom{R}Set}
@@ -601,7 +597,7 @@ functions & functions        & {functions} \\
 \begin{itemize}
 \item Just as mind-bending as tying-the-knot techniques for sharing
 \item Only applicable in domains where unique solution exists and is computable
-\item Lamda-lifting can affect termination:
+\item Lambda-lifting can affect termination:
 \begin{lstlisting}
 ghci> let s1    = RS.insert 42  s1     in RS.get  s1
 fromList [42]
