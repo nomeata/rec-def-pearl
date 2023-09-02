@@ -271,17 +271,26 @@ bool @3is_odd@(unsigned int n) {
 ~
 \end{frame}
 
-\begin{frame}[fragile]{C is lazy, but Haskell is lazier}
+\begin{frame}{Laziness is a spectrum}
 \begin{center}
-\begin{tabular}{c|c|c}
-C & Haskell & \phantom{Haskell}\\
- & & \phantom{+ rec-def}\\
-\hline
-\bigstrut
-functions & functions        & \phantom{functions} \\
-          & \lstinline-data- & \phantom{\lstinline-data-} \\
-          &                  & \phantom{Sets, Booleans} \\
-\end{tabular}
+\begin{tikzpicture}
+\draw (0,-1.5) -- (0,1.5);
+\draw[->] (0,0) -- (10,0);
+\node[anchor=west] at (10,0) {Laziness};
+\node at (1,0.5) {functions};
+\node at (3,0.5) {\color{OliveGreen}\bfseries data};
+\node at (1,-0.5) {C};
+\node at (3,-0.5) {Haskell};
+\iffalse
+\node at (5,1) {sets};
+\node at (5,0.5) {booleans};
+\node at (7,1) {maps};
+\node at (7,0.5) {naturals};
+\node at (9,1) {grammars};
+\node at (9,0.5) {\ldots};
+\node at (5,-0.5) {+ rec-def};
+\fi
+\end{tikzpicture}
 \end{center}
 \end{frame}
 
@@ -544,7 +553,7 @@ Unique least solution always exists
 \end{itemize}
 \end{frame}
 
-\begin{frame}[fragile]{My main claim}
+\begin{frame}[fragile]{This talk’s hot take}
 \begin{center}
 \Large
 When sets of equations have a unique solution,
@@ -555,7 +564,30 @@ they should work as recursive definitions.
 \end{center}
 \end{frame}
 
+\begin{frame}{Laziness is a spectrum}
+\begin{center}
+\begin{tikzpicture}
+\draw (0,-1.5) -- (0,1.5);
+\draw[->] (0,0) -- (10,0);
+\node[anchor=west] at (10,0) {Laziness};
+\node at (1,0.5) {functions};
+\node at (3,0.5) {\color{OliveGreen}\bfseries data};
+\node at (1,-0.5) {C};
+\node at (3,-0.5) {Haskell};
+\iftrue
+\node at (5,1) {sets};
+\node at (5,0.5) {booleans};
+\node at (7,1) {maps};
+\node at (7,0.5) {naturals};
+\node at (9,1) {grammars};
+\node at (9,0.5) {\ldots};
+\node at (5,-0.5) {+ rec-def};
+\fi
+\end{tikzpicture}
+\end{center}
+\end{frame}
 
+\iffalse
 \begin{frame}[fragile]{C is lazy, but Haskell is lazier, could be even more lazy}
 \begin{center}
 \begin{tabular}{c|c|c}
@@ -573,6 +605,7 @@ functions & functions        & {functions} \\
 \end{tabular}
 \end{center}
 \end{frame}
+\fi
 
 \begin{frame}[fragile]{What's the gain?}
 \begin{itemize}
@@ -610,15 +643,16 @@ fromList ^CInterrupted.
 \begin{frame}{What's in the paper?}
 \begin{itemize}
 \item Larger use-case: program analysis
-\item Same type, different orders
+%\item Same type, different orders
 \item Implementation insights:\\
 \begin{itemize}
-\item From imperative propagator libraries to pure API
+\item Pure APIs for imperative propagators
 \item \lstinline-unsafePerformIO-
 \item Sharing as a source of uniqueness
 \item Concurrency, reentrancy and space leak concerns
 \item The \lstinline-let x = x- issue
 \end{itemize}
+\item Related work (Observable sharing, Datafun, \ldots)
 \item Denotational semantics (WIP draft)
 \item Try it at \url{https://hackage.haskell.org/package/rec-def}
 \end{itemize}
