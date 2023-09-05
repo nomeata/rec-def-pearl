@@ -294,24 +294,8 @@ bool @3is_odd@(unsigned int n) {
 \end{center}
 \end{frame}
 
-\begin{frame}[fragile]{A famous tied knot}
-\lstset{moredelim=**[is][{\btHL<2>[name=show1, fill=orange,remember picture]}]{@1}{@}}
-\lstset{moredelim=**[is][{\btHL<2>[name=show2, fill=orange,remember picture]}]{@2}{@}}
-\lstset{moredelim=**[is][{\btHL<2>[name=show3, fill=orange,remember picture]}]{@3}{@}}
-\begin{CenteredBox}
-\begin{lstlisting}
-fibs :: [Integer]
-@1fibs@ = 0 : 1 : zipWith (+) @2fibs@ (tail @3fibs@)
-\end{lstlisting}
-\end{CenteredBox}
-\only<2>{%
-\tikz[overlay,remember picture]{\draw[->,bend left, color=orange] (show2.south west) to (show1.south east)}%
-\tikz[overlay,remember picture]{\draw[->,bend left, color=orange] (show3.south west) to (show1.south east)}%
-}%
-~
-\end{frame}
-
-\begin{frame}[fragile,t]{The reflexive transitive closure}
+\begin{frame}[fragile,t]{The reflexive transitive closure as a tied knot}
+\lstset{moredelim=**[is][{\btHL<2->[name=show1, fill=orange,remember picture]}]{@1}{@}} \lstset{moredelim=**[is][{\btHL<2->[name=show2, fill=orange,remember picture]}]{@2}{@}}
 \begin{lstlisting}
 type Graph = M.Map Int [Int]
 
@@ -319,9 +303,11 @@ rtrans :: Graph -> Graph
 rtrans g = M.map S.toList reaches
   where
     reaches :: M.Map Int (S.Set Int)
-    reaches = M.mapWithKey f g
-    f v vs = S.insert v (S.unions [ reaches M.! v' | v' <- vs ]))
+    @1reaches@ = M.mapWithKey f g
+    f v vs = S.insert v (S.unions [ @2reaches@ M.! v' | v' <- vs ]))
 \end{lstlisting}
+\pause
+\tikz[overlay,remember picture]{\draw[->,bend right, color=orange] (show2) to (show1)}%
 \pause
 \begin{center}
 \lstinline-rtrans(-
@@ -330,18 +316,18 @@ rtrans g = M.map S.toList reaches
 \node[draw,circle, inner sep=1pt] (2) at (1,0) {2};
 \node[draw,circle, inner sep=1pt] (3) at (2,0) {3};
 \path[draw,->] (1) to [bend right] (3);
-\path[draw,->] (2) to [bend right] (1);
-\path<3->[thick,red,draw,->] (1) to [bend right] (2);
+\path[draw,->] (2) to [bend left] (1);
+\path<4->[thick,red,draw,->] (1) to [bend left] (2);
 \end{tikzpicture}
 \lstinline-) = -
-\Alt<3->{\visible<4->{$\bot$}}{%
+\Alt<4->{\visible<5->{$\bot$}}{%
 \begin{tikzpicture}[anchor=base,baseline]
 \node[draw,circle, inner sep=1pt] (1) at (0,0) {1};
 \node[draw,circle, inner sep=1pt] (2) at (1,0) {2};
 \node[draw,circle, inner sep=1pt] (3) at (2,0) {3};
 \path[draw,->] (1) to [bend right] (3);
 \path[draw,->] (1) to [loop above] (1);
-\path[draw,->] (2) to [bend right] (1);
+\path[draw,->] (2) to [bend left] (1);
 \path[draw,->] (2) to [loop above] (2);
 \path[draw,->] (2) to [bend left] (3);
 \path[draw,->] (3) to [loop above] (3);
@@ -679,6 +665,24 @@ they should work as recursive definitions.
 
 \appendix
 \section{Backup slides}
+
+\begin{frame}[fragile]{A famous tied knot}
+\lstset{moredelim=**[is][{\btHL<2>[name=show1, fill=orange,remember picture]}]{@1}{@}}
+\lstset{moredelim=**[is][{\btHL<2>[name=show2, fill=orange,remember picture]}]{@2}{@}}
+\lstset{moredelim=**[is][{\btHL<2>[name=show3, fill=orange,remember picture]}]{@3}{@}}
+\begin{CenteredBox}
+\begin{lstlisting}
+fibs :: [Integer]
+@1fibs@ = 0 : 1 : zipWith (+) @2fibs@ (tail @3fibs@)
+\end{lstlisting}
+\end{CenteredBox}
+\only<2>{%
+\tikz[overlay,remember picture]{\draw[->,bend left, color=orange] (show2.south west) to (show1.south east)}%
+\tikz[overlay,remember picture]{\draw[->,bend left, color=orange] (show3.south west) to (show1.south east)}%
+}%
+~
+\end{frame}
+
 
 \begin{frame}[fragile]{API excerpt}
 We have
